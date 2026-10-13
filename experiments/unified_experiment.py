@@ -353,7 +353,7 @@ def _axis_labels_for_dataset(dataset: str, dim: int) -> tuple[str, ...]:
 
 
 def _make_vis_cfg_for_method(dataset: str, run_cfg: Any, eval_cfg: Any) -> Any:
-    # Reuse ONCL plotting defaults, but respect current run/eval projection and bounds knobs.
+    # Use the run's projection and bounds settings with the ONCL plot helpers.
     vis_vals = asdict(ve.build_cfg(dataset))
     if hasattr(run_cfg, "__dict__"):
         for k, v in vars(run_cfg).items():

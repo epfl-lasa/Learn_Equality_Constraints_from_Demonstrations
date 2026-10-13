@@ -51,19 +51,7 @@ from planning.planner import plan_path
 from planning.planner import _plot_planar_arm_planning
 from methods.codim_utils import estimate_codim_local_pca
 
-DEFAULT_DATASETS = [
-    # "3d_torus_surface",
-
-    "3d_spatial_arm_ellip_n3",
-    # "3d_vz_2d_sine",
-    # "3d_0z_2d_ellipse"
-    # "3d_spatial_arm_ellip_n3",
-
-    # "3d_spatial_arm_plane_n3",
-    # "6d_spatial_arm_up_n6_py",
-    # "6d_spatial_arm_up_n6",
-
-]
+DEFAULT_DATASETS = ["3d_spatial_arm_ellip_n3"]
 DEFAULT_OUTDIR = "outputs/oncl"
 
 @dataclass
@@ -127,19 +115,13 @@ class DemoCfg:
     plot_traj_stride: int = 2
     surface_use_marching_cubes: bool = True
     train_log_every: int = 50
-    # UR5 kinematics/render config now lives in datasets/ur5_pybullet_utils.py
 
-# ----------------------------------------------------------------------
-# Config layering:
-# 1) BASE_CFG = current default values (from DemoCfg)
-# 2) DATASET_OVERRIDES = per-dataset custom parameters
-# ----------------------------------------------------------------------
+# Defaults for this standalone demo; benchmark runners use configs/*.json.
 BASE_CFG: dict[str, Any] = asdict(DemoCfg())
 
 DATASET_OVERRIDES: dict[str, dict[str, Any]] = {
-    # Examples (edit as needed):
     "6d_spatial_arm_up_n6_py": {
-        "epochs": 4,#000,
+        "epochs": 4,
         "constraint_dim": 2,
         "lr": 2e-4,
     },

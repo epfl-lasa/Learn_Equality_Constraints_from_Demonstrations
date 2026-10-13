@@ -1,126 +1,106 @@
-# Evaluator Metrics
+# Evaluation metrics
 
-This document explains the unified evaluation pipeline and every metric produced by:
-- `evaluator/evaluator.py`
-- `core/eval_runner.py`
+Training runners call [eval_runner.py](eval_runner.py), which combines projection
+and coverage metrics from [evaluator.py](evaluator.py). Results are saved in each
+run's `*_eval.json` file and in the benchmark summary tables.
 
-## Pipeline
+## Evaluation procedure
 
-1. Resolve evaluator config via `resolve_eval_cfg(...)`:
-- base: `DEFAULT_EVAL_CFG`
-- plus method override (`EVAL_METHOD_OVERRIDES`)
-- plus dataset override (`EVAL_DATASET_OVERRIDES`)
+1. Merge evaluator defaults, the run configuration, method overrides and dataset
+   overrides, in that order.
+2. Generate a reference manifold grid. Synthetic tasks use their dataset generator;
+   RealKuka uses the included calibrated surface model.
+3. Set the residual threshold `eps` to the `zero_eps_quantile` percentile of
+   `||F(x_train)||₂`. Both classification and projection use this threshold.
+4. Sample query points and project them with the method's projector. Compute
+   residuals, distances to the reference manifold and classification statistics.
+5. Reuse the projected points for bidirectional nearest-neighbor coverage metrics.
 
-2. Build GT manifold reference points:
-- `resolve_gt_grid(dataset_name, cfg, x_train)`
-- usually from `generate_dataset(...)` dense `grid`
+Query sampling uses a fixed RNG seed (`2026`), independently of the training seed.
+By default, 75% of queries are perturbed reference-manifold samples and 25% are
+uniform samples in the evaluation bounds. `eval_chamfer_near_source=gt` selects
+reference samples; `train` selects training samples instead. Bounds come from the
+training data with padding, with task-specific handling of joint limits and angles.
+The reference grid and sampling settings affect the reported distances and should
+be held fixed when comparing methods.
 
-3. Compute zero-threshold (`eval_eps_used` / `eps_stop`):
-- `compute_eps_stop(model, x_train, cfg)`
-- uses `|F(x_train)|` (or `||F(x_train)||` for multi-output)
-- threshold is `percentile(abs(F_on), zero_eps_quantile)`
+## Prediction and projection
 
-4. Projection metrics (`evaluate_projection_metrics`):
-- sample eval seeds `x_eval` in bounds from training set
-- evaluate prediction on `x_eval`
-- run projection `project_fn(model, x_eval, eval_eps_used) -> (proj, steps)`
-- compare projected points vs GT manifold
+Let `r(x) = ||F(x)||₂`. A point is classified as on-manifold when `r(x) < eps`.
+The geometric threshold `tau` is `eval_tau_ratio` times the mean axis range of the
+reference grid in the evaluation space.
 
-5. Bidirectional Chamfer (`evaluate_bidirectional_chamfer`):
-- project random seeds to learned manifold samples
-- compute nearest-neighbor distances both directions vs GT samples
+| Metric | Definition | Direction |
+| --- | --- | --- |
+| `pred_on_mean_v` | Mean `0.5 * r(x)²` on training samples | Lower |
+| `pred_recall` | Fraction of reference samples classified as on-manifold | Higher |
+| `pred_FPrate` | Fraction of query points with reference distance ≥ `tau` classified as on-manifold | Lower |
+| `pred_precision` | Fraction of finite projected points with reference distance < `tau` | Higher |
+| `proj_manifold_dist` | Mean distance from projected points to the reference manifold | Lower |
+| `proj_true_dist` | Mean distance from each projected point to the reference target for its original query | Lower |
+| `proj_v_residual` | Mean `r(x)` after projection | Lower |
+| `proj_steps` | Mean projector iteration count | Interpret with accuracy |
 
-6. Optional distance space:
-- `dist_space="data_space"` by default
-- if `embed_fn` provided (e.g. robot workspace), metrics are computed in embedded workspace
+`pred_precision` measures geometric accuracy of the projected set. It is not
+classification precision on the original query set. False-positive rate is `NaN`
+when there are no query points outside the geometric threshold.
 
-## Metrics
+For generic datasets, reference distances and projection targets use nearest
+neighbors in the finite reference grid. SurfNormal and dual-arm pose evaluation
+use task-specific analytic targets when workspace embedding is enabled. RealKuka
+uses its calibrated surface for manifold distances; its `proj_true_dist` target
+still comes from the reference grid. These targets are evaluation references and
+need not be exact Euclidean closest-point projections.
 
-### Prediction / classification style
+## Coverage
 
-- `pred_on_mean_v`
-  - Meaning: mean `0.5 * |F(x_train)|^2` on training manifold points
-  - Better: lower
+| Metric | Definition |
+| --- | --- |
+| `gt_to_learned_mean` | Mean nearest-neighbor distance from reference samples to projected samples |
+| `learned_to_gt_mean` | Mean nearest-neighbor distance from projected samples to reference samples |
+| `bidirectional_chamfer` | Sum of the two directional means |
+| `gt_to_learned_p95` | 95th percentile of reference-to-projected distances |
+| `learned_to_gt_p95` | 95th percentile of projected-to-reference distances |
 
-- `pred_recall`
-  - Meaning: among GT manifold points (dataset `grid`), fraction predicted as on-manifold (`|F(x)| < eval_eps_used`)
-  - Better: higher
+Lower values indicate closer agreement. Distances are Euclidean, not squared;
+`bidirectional_chamfer` is a sum, not the average of the two directions.
 
-- `pred_FPrate`
-  - Meaning: among sampled eval points that are far from GT manifold (`d_true_eval >= tau`), fraction wrongly predicted as on-manifold
-  - Better: lower
+## Coordinate spaces and RealKuka errors
 
-- `pred_precision`
-  - Meaning: among projected points (`project_fn` outputs), fraction within GT-near threshold (`distance_to_GT < tau`)
-  - Better: higher
+Generic tasks use data-space distances. Robot tasks can use a workspace embedding;
+pose embeddings combine position and orientation components, so their combined
+distances should not be read as position errors in metres.
 
-### Projection quality
+For RealKuka, Chamfer distances use world-frame XYZ in metres and do not include
+orientation. The additional projection metrics separate position and orientation:
 
-- `proj_manifold_dist`
-  - Meaning: mean distance from projected points `proj` to GT manifold (nearest-neighbor)
-  - Better: lower
+- `real_iiwa_proj_position_error_mm_{mean,median,p95,max}`: local surface-distance
+  estimate, computed from the height residual divided by `sqrt(1 + ||gradient||²)`,
+  in millimetres. `real_iiwa_proj_position_error_m_mean` reports the mean in metres.
+- `real_iiwa_proj_orientation_error_deg_{mean,median,p95,max}`: angle between the
+  normalized projected tool-z axis and the signed calibrated surface normal.
+- `real_iiwa_proj_orientation_axis_l2_{mean,median,p95,max}`: Euclidean distance
+  between those two unit axes.
 
-- `proj_true_dist`
-  - Meaning: mean distance between projected points `proj` and the true projection of same seeds `x_eval`
-  - Better: lower
+The merged `dist_space` field describes the **projection** evaluation space
+(`data_space`, `workspace`, `workspace_analytic` or `real_iiwa_analytic`). In
+particular, it does not describe the separate world-XYZ Chamfer calculation for
+RealKuka. `eval_eps_used` and `eps_stop` record the same residual threshold;
+`n_gt` and `n_learned` record the sample counts used for coverage.
 
-- `proj_v_residual`
-  - Meaning: mean `|F(proj)|` after projection
-  - Better: lower
+## Default settings
 
-- `proj_steps`
-  - Meaning: mean projection iteration count returned by `project_fn`
-  - Better: lower (for speed), but should be interpreted with accuracy metrics together
+These values are defined in `DEFAULT_EVAL_CFG`; run, method and dataset settings
+can override them.
 
-### Chamfer / coverage
-
-- `bidirectional_chamfer`
-  - Meaning: `mean(d(gt -> learned)) + mean(d(learned -> gt))`
-  - Better: lower
-
-- `gt_to_learned_mean`
-  - Meaning: average nearest-neighbor distance GT samples -> learned samples
-  - Better: lower
-
-- `learned_to_gt_mean`
-  - Meaning: average nearest-neighbor distance learned samples -> GT samples
-  - Better: lower
-
-- `gt_to_learned_p95`
-  - Meaning: 95th percentile of GT->learned NN distance
-  - Better: lower
-
-- `learned_to_gt_p95`
-  - Meaning: 95th percentile of learned->GT NN distance
-  - Better: lower
-
-### Context / bookkeeping
-
-- `eval_eps_used`
-  - Meaning: projection/prediction threshold computed from training residual quantile
-
-- `eps_stop`
-  - Meaning: same threshold value reported by chamfer routine
-
-- `dist_space`
-  - Meaning: `"data_space"` or `"workspace"` depending on whether `embed_fn` is used
-
-- `n_gt`
-  - Meaning: number of GT samples used in chamfer
-
-- `n_learned`
-  - Meaning: number of learned/projected samples used in chamfer
-
-## Key evaluator hyperparameters (from `DEFAULT_EVAL_CFG`)
-
-- `zero_eps_quantile`: quantile for `eval_eps_used`
-- `eval_tau_ratio`: controls near/far threshold `tau` for recall/FP/precision
-- `eval_gt_n_grid`: GT manifold grid size used by evaluator (for projection/chamfer reference)
-- `eval_proj_n_points`: number of projected evaluation seed points
-- `eval_chamfer_near_ratio`, `eval_chamfer_near_noise_std_ratio`: near-manifold seed sampling mix
-- `eval_pad_ratio`, `eval_min_axis_span_ratio`: eval bounding box expansion from training data
-
-## Notes
-
-- Evaluator RNG is fixed (`EVALUATOR_FIXED_SEED = 2026`) for reproducibility.
-- Metrics are method-agnostic; method differences come from model `F` and `project_fn`.
+| Setting | Default | Purpose |
+| --- | ---: | --- |
+| `zero_eps_quantile` | 90.0 | Training residual percentile for `eps` |
+| `eval_tau_ratio` | 0.02 | Geometric classification threshold scale |
+| `eval_gt_n_grid` | 8128 | Requested reference grid size; actual size depends on the generator |
+| `eval_proj_n_points` | 4096 | Number of query points |
+| `eval_chamfer_near_source` | `gt` | Source of near-manifold queries |
+| `eval_chamfer_near_ratio` | 0.75 | Fraction of near-manifold queries |
+| `eval_chamfer_near_noise_std_ratio` | 0.1 | Perturbation scale relative to each axis span |
+| `eval_pad_ratio` | 0.6 | Evaluation bounds padding |
+| `eval_min_axis_span_ratio` | 0.08 | Minimum span for narrow axes |

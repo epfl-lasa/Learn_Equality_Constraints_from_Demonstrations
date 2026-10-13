@@ -9,7 +9,6 @@ ONCL (Orthonormal Neural Constraint Learning) learns differentiable equality
 constraints from feasible demonstrations. This repository contains ONCL, DataAug,
 VAE and ECoMaNN, synthetic and recorded robot datasets, training/evaluation,
 and 6D SurfNormal / 12D dual-arm planning and simulation.
-It does not contain hardware deployment, robot drivers, or video postprocessing.
 
 ## Installation
 
@@ -37,8 +36,7 @@ On servers without a display, set `export MPLBACKEND=Agg` before running experim
 The modified ECoMaNN dependency is included under `smp_manifold_learning-master/`
 and loaded directly by `methods/ecomann.py`. Do not separately install its legacy
 `setup.py`, which lists obsolete TensorFlow/SciPy dependencies unrelated to this adapter.
-Its license and attribution are retained. See that directory for the original
-implementation by Sutanto et al., CoRL 2020 / PMLR 155 (2021).
+The original implementation is by Sutanto et al., CoRL 2020 / PMLR 155 (2021).
 
 ## Quick start: train and evaluate one task
 
@@ -46,7 +44,7 @@ implementation by Sutanto et al., CoRL 2020 / PMLR 155 (2021).
 python -m runners.run_one --method oncl --dataset 2d_planar_arm_line_n2 --seed 0 --outdir outputs/example_planar_arm
 ```
 
-This runs the full current configuration, evaluates the learned model, and saves
+This trains with the dataset's configured hyperparameters, evaluates the model, and saves
 metrics, a checkpoint and plots. Substitute `dataaug`, `vae`, or `ecomann` to run
 a baseline, using a separate output directory. `run_one` refuses to reuse a
 nonempty output directory; choose a new directory or use `--retrain` to clear it.
@@ -54,13 +52,13 @@ Use `--help` on an entrypoint to inspect its options.
 
 ## Reproduce the benchmark
 
-`configs/paper_benchmark.json` defines the ten current synthetic benchmark tasks,
-the recorded `RealKuka` task, and three optional geometry examples. The additional
-dataset generators and task-specific configurations are also retained.
+[`configs/paper_benchmark.json`](configs/paper_benchmark.json) defines ten synthetic
+benchmark tasks, the recorded `RealKuka` task, and three optional geometry examples.
+See [DATASETS.md](DATASETS.md) for dataset descriptions and additional generators.
 
 | Group | Tasks |
 | --- | --- |
-| `main` | Ten synthetic tasks listed in DATASETS.md |
+| `main` | Ten synthetic tasks |
 | `real` | RealKuka human demonstrations |
 | `core` (default) | `main` + `real`, eleven tasks |
 | `geometry` | Faceted sphere, genus-3 tube and spiky sphere |
@@ -69,7 +67,7 @@ dataset generators and task-specific configurations are also retained.
 python -m runners.run_paper_benchmark --methods oncl --seeds 0
 ```
 
-This uses the current dataset/method parameters without reducing training epochs.
+This trains and evaluates ONCL with seed 0 on all eleven core tasks.
 Use `--group main`, `--group real`, or `--group geometry` to select a subset.
 Multiple seeds and methods are supported, for example:
 
@@ -78,8 +76,8 @@ python -m runners.run_paper_benchmark --methods oncl,dataaug,vae,ecomann --seeds
 python -m runners.run_one --method oncl --dataset RealKuka --seed 0 --outdir outputs/real_kuka
 ```
 
-The example seeds `0,1,2` are selectable seeds, not a claim that they reproduce
-the complete seed set used for every published figure.
+The commands above illustrate single-seed and multi-seed runs. They do not specify
+the seed sets for individual paper figures.
 
 Run a specific group or an arbitrary dataset subset:
 
@@ -110,10 +108,12 @@ and `leaderboard_mean_by_method.csv`. Evaluation runs automatically after traini
 and includes projection/manifold distances, ground-truth/learned-surface distances,
 and constraint classification metrics where applicable. RealKuka also reports
 position and tool-axis orientation errors against the calibrated surface.
-This numerical evaluation is separate from downstream planning and simulation.
+See [evaluation/README_metrics.md](evaluation/README_metrics.md) for metric
+definitions, units and evaluation sampling settings. Planning and simulation
+are run separately using the commands below.
 
-Pretrained experiment models and old results are not shipped. Train the relevant
-dataset after cloning before running checkpoint-dependent planning or simulation.
+Train the relevant model before running planning or simulation; pretrained
+experiment checkpoints are not included.
 All generated models, figures, caches and videos are ignored by Git.
 
 Plots and numerical summaries can be generated from the benchmark outputs:
@@ -139,8 +139,7 @@ It plans using the learned constraint and executes the plan with a UR5 in PyBull
 python -m simulation.sim_sine_pose_waypoints --gui 0 --save-error-video 0 --ckpt outputs/bench/paper/oncl/6d_surf_normal_traj/6d_surf_normal_traj_oncl_seed0_model.pt --outdir outputs/simulation/surfnormal
 ```
 
-The historical `sim_sine_pose_*` filenames are retained; they now import the
-current SurfNormal planners. `--gui 0` runs headlessly, `--gui 1` renders
+`--gui 0` runs headlessly, `--gui 1` renders
 an offscreen video, and `--gui 2` opens an interactive window. Error-curve video
 export is controlled separately by `--save-error-video`. Run the obstacle task with:
 
@@ -181,36 +180,18 @@ are forwarded to child planning scripts. `--dry-run` prints the generated comman
 
 ## Recorded robot data
 
-`datasets/real_iiwa/` includes only the RealKuka processed train set, task metadata and
-calibration/surface models. Raw ROS bag recordings are excluded and ignored by Git.
-`RealKuka` loads the 1,283-sample human
-demonstration set, with normalized position and recorded tool-z orientation.
+`datasets/real_iiwa/` contains the RealKuka processed training set, task metadata
+and surface calibration models. `RealKuka` loads 1,283 human-demonstration samples.
 The six-dimensional samples contain normalized TCP XYZ followed by the tool
 local-z direction in the world frame. They were thinned at approximately 3 mm
 spatial arc-length spacing and cropped to remove entry/exit segments. Training
 reads `datasets/real_iiwa/tasks/RealKuka/processed/train_sets/human_demo_paper_toolz_arc3mm_cropped_v001.npz`
-directly. Keep the task metadata and calibration checkpoint/grid with this NPZ;
-they support normalization, reference-surface generation and evaluation.
-Oracle demonstrations and other real-robot training datasets are excluded.
-See `DATASETS.md` for scope and provenance. Dataset preparation scripts are
-optional; raw-input paths must be supplied explicitly. Training does not use
-robot network addresses or the original acquisition computer's directories.
+directly. The accompanying metadata and calibration checkpoint/grid provide
+normalization, reference-surface generation and evaluation. Raw ROS bags are not
+included or required for these experiments. Optional preprocessing scripts accept
+external raw-input paths. See [DATASETS.md](DATASETS.md) for the data layout.
 
-## Changes from the first submission
-
-The current snapshot adds complex geometry datasets, updates SurfNormal sampling,
-uses current per-task hyperparameters, and supports shared start/goal pairs for
-planning comparisons. Evaluation now defaults to near-manifold query samples
-from the ground-truth manifold (`eval_chamfer_near_source=gt`), rather than from
-training samples. Checkpoints and evaluation files include the seed in their names.
-The first-submission history remains available in Git.
-
-Robustness sweeps, temporary tuning/diagnostic entrypoints, historical results,
-robot deployment, and camera/video processing are outside this release scope.
-The shared data loader still contains inactive optional transform helpers to
-preserve the original numerical pipeline; no robustness presets are shipped.
-
-## Repository layout and validation
+## Repository layout
 
 | Directory | Purpose |
 | --- | --- |
@@ -221,15 +202,7 @@ preserve the original numerical pipeline; no robustness presets are shipped.
 | `planning/`, `simulation/` | Learned-constraint planning and PyBullet execution |
 | `plotting/`, `benchmark/`, `tools/` | Figures and offline analysis |
 
-Migration validation trained ONCL seed 0 on eleven core tasks plus three geometry
-tasks, and DataAug/VAE seed 0 on six tasks added since the first submission.
-Model weights and numerical results matched the development project exactly in
-the tested environment. ECoMaNN has not undergone the same migration training
-comparison. See [VALIDATION_RESULTS.json](VALIDATION_RESULTS.json) and
-[MIGRATION_REPORT.md](MIGRATION_REPORT.md) for the exact scope. These checks are
-not a complete multi-seed reproduction of all published results.
-
-ECoMaNN attribution and its original MIT license are retained in
+ECoMaNN's original MIT license is included in
 [smp_manifold_learning-master/LICENSE](smp_manifold_learning-master/LICENSE).
 Texture attribution is in [datasets/assets/textures/README.md](datasets/assets/textures/README.md).
 

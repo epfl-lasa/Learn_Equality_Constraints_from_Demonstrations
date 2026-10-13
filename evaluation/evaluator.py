@@ -43,7 +43,7 @@ DEFAULT_EVAL_CFG: dict[str, Any] = {
 EVALUATOR_FIXED_SEED = 2026
 
 # Centralized evaluator override hooks.
-# Priority: DEFAULT_EVAL_CFG < method override < dataset override
+# Priority: defaults < run config < method override < dataset override.
 EVAL_METHOD_OVERRIDES: dict[str, dict[str, Any]] = {
     "oncl": {},
     "margin": {},
@@ -52,7 +52,7 @@ EVAL_METHOD_OVERRIDES: dict[str, dict[str, Any]] = {
     "ecomann": {},
 }
 EVAL_DATASET_OVERRIDES: dict[str, dict[str, Any]] = {
-    # Keep explicit keys as templates; defaults are currently identical to DEFAULT_EVAL_CFG.
+    # Empty entries inherit the run config and evaluator defaults.
     "2d_figure_eight": {},
     "2d_ellipse": {},
     "2d_noisy_sine": {},
@@ -81,8 +81,7 @@ EVAL_DATASET_OVERRIDES: dict[str, dict[str, Any]] = {
 }
 
 
-# Deterministic evaluator RNG:
-# every evaluation call uses the exact same sampling stream for strict reproducibility.
+# Reset the sampling stream for each evaluation call.
 def _fixed_rng() -> np.random.Generator:
     return np.random.default_rng(EVALUATOR_FIXED_SEED)
 
@@ -860,7 +859,7 @@ def evaluate_projection_metrics(
     pred_on_gt = np.abs(h_gt) < eval_eps_used
     coverage = float(np.mean(pred_on_gt)) if pred_on_gt.size > 0 else float("nan")
 
-    # False-positive rate: still measured on sampled eval points that are far from GT manifold.
+    # False-positive rate on query points outside the GT distance threshold.
     pred_zero_eval = np.abs(h_eval) < eval_eps_used
     far_eval = d_true_eval >= tau
     false_pos = float(np.mean(pred_zero_eval[far_eval])) if np.any(far_eval) else float("nan")

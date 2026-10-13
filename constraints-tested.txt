@@ -1,4 +1,4 @@
-# Direct dependency versions from the migration validation environment.
+# Tested direct dependency versions.
 # Use with: python -m pip install -r requirements.txt -c constraints-tested.txt
 # Python 3.10.18; PyTorch was tested with the CUDA 12.8 build.
 numpy==2.2.6

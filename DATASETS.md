@@ -1,7 +1,6 @@
-# Publication datasets
+# Datasets
 
-The current benchmark list is defined in `configs/paper_benchmark.json`.
-The first-submission dataset list is available in Git history.
+The core benchmark is defined in [configs/paper_benchmark.json](configs/paper_benchmark.json).
 
 | Dataset ID | Dimension | Purpose |
 |---|---:|---|
@@ -19,19 +18,23 @@ The first-submission dataset list is available in Git history.
 
 ## Recorded data and provenance
 
-The only real-robot training dataset in this publication checkout is `RealKuka`.
-Its processed human demonstrations, task metadata and calibration models are
-retained. Oracle demonstrations, independent curved-surface training datasets,
-early plane tasks, raw ROS bags and generated figures are excluded.
-The development checkout retains the additional curved-surface datasets and the
-Oracle full/3 mm datasets; the latest publication-only cleanup does not modify it.
-Calibration checkpoints and metadata are needed for normalization and evaluation.
-Historical acquisition paths in JSON metadata are provenance only; runtime loading
-uses repository-relative paths through `datasets/real_iiwa/registry.py`.
+`RealKuka` contains processed human demonstrations recorded with a KUKA iiwa.
+Each sample has six components: normalized TCP position (XYZ) and the measured
+tool-z unit direction in the world frame. Loading uses repository-relative paths
+through `datasets/real_iiwa/registry.py`.
+
+| Path under `datasets/real_iiwa/` | Contents |
+| --- | --- |
+| `tasks/RealKuka/processed/train_sets/` | Processed training NPZ |
+| `tasks/RealKuka/task.json` | Data provenance, preprocessing and calibration references |
+| `surface_models/calibrated_tcp1845_neural_1d_surface_model/` | Surface checkpoint, grid and normalization metadata used for evaluation |
+
+Acquisition paths in the task metadata document the source recordings and are
+not required at runtime.
 
 The `RealKuka` default is `human_demo_paper_toolz_arc3mm_cropped_v001.npz`,
 with 1,283 points. It was subsampled at 3 mm arc length and cropped to remove
-entry/exit segments. Raw inputs not present in this snapshot must be provided
+entry/exit segments. Raw inputs must be provided
 explicitly to the optional preprocessing scripts; processed-data training is
 self-contained.
 
@@ -40,14 +43,13 @@ training outputs or videos are needed to train these tasks.
 
 ## Additional geometry
 
-Double-torus, genus-3, faceted-sphere, spiky-sphere, spline/knot, and warped-4D
-variants are retained with their current configurations. The `geometry` runner
-group is a representative subset, not a claim that all exploratory datasets
-appear in the final paper.
+The `geometry` benchmark group contains trajectory variants of the faceted sphere,
+genus-3 tube and spiky sphere. Additional generators include double-torus,
+spline/knot and warped-4D manifolds; their parameters are in `configs/datasets/`.
 
 ## Additional Datasets Provided by the Project
 
-The repository also includes several additional datasets that are not part of the main paper benchmark. These are useful for debugging, ablations, or extending the benchmark suite.
+The following generators support experiments beyond the core benchmark.
 
 | Dataset ID                       | Data Dim | Codim | Traj Note                      | Description                                                                       |
 | -------------------------------- | -------: | ----: | ------------------------------ | --------------------------------------------------------------------------------- |
@@ -121,19 +123,23 @@ The repository also includes several additional datasets that are not part of th
 ## UR5 Dataset Helpers
 
 Files:
+
 - `datasets/ur5_n6_dataset.py`
 - `datasets/ur5_pybullet_utils.py`
 
 Key functions:
+
 - `sample_ur5_upward_dataset(...)`: pybullet-based UR5 upward-orientation dataset sampling
 - `sample_ur5_upward_dataset_analytic(...)`: analytic/no-pybullet approximation sampler
 
 ## Vendored UR5 Assets
 
 Path:
+
 - `datasets/assets/UR5+gripper/`
 
-Contains URDF plus mesh and texture resources copied into this repo for reproducible open-source usage:
+The directory contains the URDF, meshes and textures used by PyBullet:
+
 - `ur5_gripper.urdf`
 - `mesh/`
 - `textures/`
