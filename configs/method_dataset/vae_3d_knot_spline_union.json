@@ -1,0 +1,6 @@
+{
+  "lr": 0.002,
+  "epochs": 1600,
+  "beta_final": 0.004,
+  "warmup_epochs": 800
+}

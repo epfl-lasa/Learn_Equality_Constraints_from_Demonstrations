@@ -31,13 +31,27 @@ Thumbs.db
 *.log
 
 # Experiment outputs and local tracking
+outputs/
 wandb/
 
 # Generated datasets and cached assets
 datasets/generated/
+datasets/cache/
+datasets/real_iiwa/tasks/*/figures/
 
 # Media generated during analysis/debugging
 *.gif
+*.mp4
+
+# Raw ROS recordings are kept outside the publication repository.
+*.bag
+
+# Development and robot deployment artifacts are outside the publication scope.
+kuka_experiment_data/
+legacy_early_test/
+datasets/assets/iiwa/
+configs/sweeps/
+*.tar.gz
 
 # Vendored third-party data artifacts
 smp_manifold_learning-master/**/*.npy

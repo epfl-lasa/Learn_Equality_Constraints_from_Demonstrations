@@ -1,0 +1,42 @@
+{
+  "task_id": "RealKuka",
+  "robot": "kuka_iiwa14",
+  "surface_type": "neural_height_field",
+  "registered_dataset": "RealKuka",
+  "constraints": {
+    "position": {
+      "type": "neural_height_field",
+      "frame": "world",
+      "model": "../../surface_models/calibrated_tcp1845_neural_1d_surface_model/calibrated_tcp1845_neural_1d_surface_mlp.pt",
+      "metadata": "../../surface_models/calibrated_tcp1845_neural_1d_surface_model/calibrated_tcp1845_neural_1d_surface.json",
+      "implicit": "z - f_neural(x, y) = 0",
+      "source": "calibrated_tcp1845_neural_1d_surface_model"
+    },
+    "orientation": {
+      "type": "tool_z_axis",
+      "target": "-neural_surface_upward_normal",
+      "source": "Training uses recorded/reconstructed human demonstration tool local z-axis."
+    }
+  },
+  "notes": "Default training set is human_demo_paper, greedily thinned by 3 mm xyz arc length and cropped to remove enter/leave segments. Input x is [surface-model normalized xyz, recorded tool_z_x, tool_z_y, tool_z_z]. Additional RealKuka demonstrations can be added as separate train_sets under this task.",
+  "source": {
+    "external_directory": "/home/baiyu/iiwa_share/demonstration_test",
+    "raw_csv": "passive_demo_20260721_152907_demonstration_test.csv",
+    "metadata_json": "passive_demo_20260721_152907_demonstration_test.json",
+    "default_demonstration": "human_demo_paper",
+    "default_processed_train_npz": "processed/train_sets/human_demo_paper_toolz_arc3mm_cropped_v001.npz",
+    "default_processing_script": "tools/build_iiwa_passive_demo_toolz_dataset.py --arc-mm 3 followed by start/end crop",
+    "crop_arc_start_index": 50,
+    "crop_arc_end_exclusive_index": 1333
+  },
+  "train_sets": [
+    {
+      "name": "human_demo_paper_toolz_arc3mm_cropped_v001",
+      "demonstration": "human_demo_paper",
+      "path": "processed/train_sets/human_demo_paper_toolz_arc3mm_cropped_v001.npz",
+      "x_space": "surface_model_normalized_uvz_plus_tool_z",
+      "subsample_mode": "passive_demo_greedy_xyz_arc_length_3mm_then_remove_enter_leave_segments",
+      "point_count": 1283
+    }
+  ]
+}

@@ -23,5 +23,5 @@ wandb
 # Simulation
 pybullet
 
-# Integrated ECoMaNN dependency
--e ./smp_manifold_learning-master
+# ECoMaNN is loaded from the bundled source by methods/ecomann.py.
+# Do not install its legacy setup.py (it pins obsolete TensorFlow/SciPy).

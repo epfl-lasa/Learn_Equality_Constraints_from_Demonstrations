@@ -1,0 +1,17 @@
+# Direct dependency versions from the migration validation environment.
+# Use with: python -m pip install -r requirements.txt -c constraints-tested.txt
+# Python 3.10.18; PyTorch was tested with the CUDA 12.8 build.
+numpy==2.2.6
+scipy==1.15.3
+torch==2.10.0
+scikit-learn==1.7.2
+pandas==2.3.3
+PyYAML==6.0.2
+tqdm==4.64.1
+matplotlib==3.10.6
+scikit-image==0.25.2
+Pillow==11.3.0
+imageio==2.37.0
+plotly==6.5.2
+wandb==0.18.2
+pybullet==3.2.7

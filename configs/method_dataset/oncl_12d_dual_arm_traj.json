@@ -1,9 +1,8 @@
 {
   "constraint_dim": 10,
-  "epochs": 1500,
-  "lr": 0.002,
-  "lam_oncl": 0.1
-
+  "epochs": 4000,
+  "lr": 0.001,
+  "lam_oncl": 0.2,
+  "lam_oncl_ortho": 1.0
 }
-
 

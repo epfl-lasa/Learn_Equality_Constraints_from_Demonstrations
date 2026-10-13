@@ -1,0 +1,18 @@
+{
+  "n_train": 4096,
+  "n_grid": 32768,
+  "eval_gt_n_grid": 32768,
+  "traj_gene_n_grid": 32768,
+  "traj_grid_min": 32768,
+  "constraint_dim": 1,
+  "spiky_sphere_n_lat": 24,
+  "spiky_sphere_n_lon": 48,
+  "spiky_sphere_n_ctrl": 58,
+  "spiky_sphere_spike_scale": 0.86,
+  "spiky_sphere_sigma": 0.105,
+  "spiky_sphere_sharpness": 8.0,
+  "off_bank_size": 24,
+  "off_bank_oversample": 8,
+  "traj_count": 64,
+  "traj_knn": 24
+}

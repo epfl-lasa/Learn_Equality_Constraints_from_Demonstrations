@@ -31,15 +31,30 @@ from evaluation.evaluator import (
     resolve_eval_cfg,
 )
 from experiments.dataset_resolve import resolve_dataset
-from methods.utils.feature_normalizer import FeatureNormalizedModel, FeatureNormalizer
-from methods.models.mlp import MLP, NormalizedMLP
+from planning.checkpoint_loader import load_constraint_model_from_checkpoint
 from planning.planner import build_linear_path, plan_path
 from methods.utils.projection import project_points_with_steps_numpy
 
 
 DATASET_NAME = "12d_dual_arm_traj"
-DEFAULT_CKPT = "outputs/bench/test_12d_dual_arm_vae/oncl/12d_dual_arm_traj_oncl_model.pt"
+DEFAULT_CKPT = "outputs/bench/paper/oncl/12d_dual_arm_traj/12d_dual_arm_traj_oncl_seed0_model.pt"
 DEFAULT_OUTDIR = "outputs/bench/dual_arm_learned_planning"
+
+
+def _load_pairs_file(path: str, dim: int) -> tuple[np.ndarray, np.ndarray]:
+    data = np.load(_resolve_path(path))
+    if "starts" in data and "goals" in data:
+        starts = np.asarray(data["starts"], dtype=np.float32)
+        goals = np.asarray(data["goals"], dtype=np.float32)
+    elif "pairs" in data:
+        pairs = np.asarray(data["pairs"], dtype=np.float32)
+        starts = pairs[:, 0, :]
+        goals = pairs[:, 1, :]
+    else:
+        raise ValueError(f"pairs file must contain starts/goals or pairs arrays: {path}")
+    if starts.ndim != 2 or goals.ndim != 2 or starts.shape != goals.shape or starts.shape[1] != int(dim):
+        raise ValueError(f"expected starts/goals with shape (N,{dim}), got {starts.shape} and {goals.shape}")
+    return starts.astype(np.float32), goals.astype(np.float32)
 
 
 def _resolve_path(path: str) -> str:
@@ -58,50 +73,17 @@ def _wrap_pi(x: np.ndarray) -> np.ndarray:
     return ((np.asarray(x, dtype=np.float32) + np.pi) % (2.0 * np.pi) - np.pi).astype(np.float32)
 
 
-def _load_constraint_model(ckpt_path: str, device: str) -> tuple[nn.Module, dict[str, Any]]:
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-    method = str(ckpt.get("method", "")).lower()
-    model_type = str(ckpt.get("model_type", "mlp")).lower()
-    if method == "vae" or "vae" in model_type:
-        raise ValueError("VAE checkpoints are generative models, not direct constraint fields for traj_opt planning.")
-    if "ecomann" in model_type:
-        raise ValueError(
-            "EcoMaNN checkpoints need the external EcoMaNN class/Jacobian interface. "
-            "Use an ONCL/DataAug checkpoint for this planner entry for now."
-        )
-
-    in_dim = int(ckpt["in_dim"])
-    out_dim = int(ckpt["constraint_dim"])
-    hidden = int(ckpt.get("hidden", 128))
-    depth = int(ckpt.get("depth", 3))
-
-    if model_type == "normalized_mlp":
-        state = ckpt["model_state"]
-        model = NormalizedMLP(
-            in_dim=in_dim,
-            hidden=hidden,
-            depth=depth,
-            out_dim=out_dim,
-            center=state.get("input_center", torch.zeros((in_dim,), dtype=torch.float32)),
-            scale=state.get("input_scale", torch.ones((in_dim,), dtype=torch.float32)),
-            angle_dims=tuple(int(v) for v in ckpt.get("input_angle_dims", [])),
-        ).to(device)
-        model.load_state_dict(ckpt["model_state"])
-    else:
-        base = MLP(in_dim=in_dim, hidden=hidden, depth=depth, out_dim=out_dim).to(device)
-        base.load_state_dict(ckpt["model_state"])
-        if model_type == "feature_normalized_mlp":
-            fd = ckpt.get("feature_normalizer", {})
-            normalizer = FeatureNormalizer(
-                center=np.asarray(fd.get("center", np.zeros((in_dim,), dtype=np.float32)), dtype=np.float32),
-                scale=np.asarray(fd.get("scale", np.ones((in_dim,), dtype=np.float32)), dtype=np.float32),
-                angle_dims=tuple(int(v) for v in fd.get("angle_dims", [])),
-            )
-            model = FeatureNormalizedModel(base, normalizer).to(device)
-        else:
-            model = base
-    model.eval()
-    return model, ckpt
+def _load_constraint_model(
+    ckpt_path: str,
+    device: str,
+    *,
+    disable_feature_normalizer: bool = False,
+) -> tuple[nn.Module, dict[str, Any]]:
+    return load_constraint_model_from_checkpoint(
+        ckpt_path,
+        device=device,
+        disable_feature_normalizer=bool(disable_feature_normalizer),
+    )
 
 
 def _build_data_pool(ckpt: dict[str, Any], seed: int) -> tuple[Any, np.ndarray, np.ndarray]:
@@ -975,8 +957,10 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--ckpt", default=DEFAULT_CKPT)
     ap.add_argument("--outdir", default=DEFAULT_OUTDIR)
     ap.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
+    ap.add_argument("--disable-feature-normalizer", type=int, default=0, help="1 to bypass FeatureNormalizedModel for timing-only ablations.")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--n-trajs", type=int, default=3)
+    ap.add_argument("--pairs-file", default="", help="Optional .npz with fixed starts/goals arrays.")
     ap.add_argument("--n-waypoints", type=int, default=80)
     ap.add_argument("--planner-mode", choices=["traj_opt", "point_project", "init_only"], default="traj_opt")
     ap.add_argument(
@@ -1038,14 +1022,20 @@ def main() -> None:
     np.random.seed(int(args.seed))
     torch.manual_seed(int(args.seed))
     device = _choose_device(str(args.device))
-    model, ckpt = _load_constraint_model(ckpt_path, device)
+    model, ckpt = _load_constraint_model(
+        ckpt_path,
+        device,
+        disable_feature_normalizer=bool(int(args.disable_feature_normalizer)),
+    )
     cfg, x_train, grid = _build_data_pool(ckpt, seed=int(args.seed))
+    fixed_pairs = _load_pairs_file(str(args.pairs_file), 12) if str(args.pairs_file).strip() else None
     plan_cfg = _planner_cfg(args, device, cfg)
     eval_cfg = resolve_eval_cfg(
         cfg,
         method_key=str(ckpt.get("method", "")),
         dataset_name=str(ckpt.get("dataset", DATASET_NAME)),
     )
+    eval_cfg.device = device
     proj_eps_stop = float(compute_eps_stop(model, x_train, eval_cfg))
 
     paths: list[np.ndarray] = []
@@ -1066,14 +1056,19 @@ def main() -> None:
         pair_min_center_dist *= 0.88
         pair_max_center_dist *= 0.88
 
-    for k in range(int(args.n_trajs)):
-        start, goal = _pick_pair(
-            pair_pool,
-            rng,
-            min_center_dist=pair_min_center_dist,
-            max_center_dist=pair_max_center_dist,
-            tries=int(args.pair_tries),
-        )
+    n_plan = int(fixed_pairs[0].shape[0]) if fixed_pairs is not None else int(args.n_trajs)
+    for k in range(n_plan):
+        if fixed_pairs is not None:
+            start = np.asarray(fixed_pairs[0][int(k)], dtype=np.float32).copy()
+            goal = np.asarray(fixed_pairs[1][int(k)], dtype=np.float32).copy()
+        else:
+            start, goal = _pick_pair(
+                pair_pool,
+                rng,
+                min_center_dist=pair_min_center_dist,
+                max_center_dist=pair_max_center_dist,
+                tries=int(args.pair_tries),
+            )
         selected_endpoints.extend([start, goal])
         if str(args.init_mode) == "task":
             init = _task_init_path(start, goal, cfg, int(args.n_waypoints))
@@ -1154,6 +1149,8 @@ def main() -> None:
         metrics = _evaluate_path(model, path, cfg, device)
         metrics["plan_seconds"] = elapsed
         metrics["index"] = int(k)
+        metrics["start"] = start.astype(float).tolist()
+        metrics["goal"] = goal.astype(float).tolist()
         metrics["start_center"] = _centers(start.reshape(1, -1))[0].tolist()
         metrics["goal_center"] = _centers(goal.reshape(1, -1))[0].tolist()
         summaries.append(metrics)
@@ -1167,12 +1164,14 @@ def main() -> None:
 
     npz_path = os.path.join(outdir, "dual_arm_learned_plans.npz")
     np.savez_compressed(npz_path, **{f"path_{i}": p for i, p in enumerate(paths)})
+    plan_seconds = [float(p.get("plan_seconds", 0.0)) for p in summaries]
     summary = {
         "ckpt": ckpt_path,
         "dataset": str(ckpt.get("dataset", DATASET_NAME)),
         "method": str(ckpt.get("method", "")),
         "seed": int(args.seed),
-        "n_trajs": int(args.n_trajs),
+        "n_trajs": int(len(paths)),
+        "pairs_file": str(args.pairs_file),
         "n_waypoints": int(args.n_waypoints),
         "planner_mode": str(args.planner_mode),
         "traj_opt_objective": str(args.traj_opt_objective),
@@ -1200,6 +1199,9 @@ def main() -> None:
         "pair_max_center_dist_used": float(pair_max_center_dist),
         "roundtrip": int(args.roundtrip),
         "traj_resample_center_arclength": int(args.traj_resample_center_arclength),
+        "mean_plan_seconds": float(np.mean(plan_seconds)) if plan_seconds else 0.0,
+        "std_plan_seconds": float(np.std(plan_seconds, ddof=1)) if len(plan_seconds) > 1 else 0.0,
+        "sem_plan_seconds": float(np.std(plan_seconds, ddof=1) / math.sqrt(len(plan_seconds))) if len(plan_seconds) > 1 else 0.0,
         "planner": plan_cfg.planner,
         "paths": summaries,
     }

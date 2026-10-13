@@ -736,7 +736,11 @@ def run_dataset(name: str, cfg: DemoCfg, outdir: str) -> None:
             title=f"{name}: ONCL",
         )
         print(f"saved: {out_path}")
-        if name in ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj"):
+        if name in (
+            "6d_workspace_sine_surface_pose",
+            "6d_workspace_sine_surface_pose_traj",
+            "6d_workspace_sine_surface_pose_traj_turn",
+        ):
             out_pose = os.path.join(outdir, f"{name}_oncl_workspace_pose_orientation.png")
             _plot_workspace_pose_orientation_3d(
                 x_train=x_train,

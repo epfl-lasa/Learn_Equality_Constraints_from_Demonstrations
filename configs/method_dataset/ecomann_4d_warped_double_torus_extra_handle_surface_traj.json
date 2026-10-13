@@ -1,0 +1,11 @@
+{
+  "epochs": 80,
+  "lr": 0.001,
+  "n_normal_space_traversal": 2,
+  "n_local_neighborhood_mult": 1.0,
+  "train_log_every": 20,
+  "projector": {
+    "max_iter": 250,
+    "tol": 0.00005
+  }
+}

@@ -4,6 +4,7 @@ import argparse
 import csv
 import glob
 import json
+import math
 import os
 from typing import Iterable
 
@@ -20,6 +21,20 @@ DEFAULT_METRICS = [
     "learned_to_gt_mean",
     "bidirectional_chamfer",
 ]
+
+DEFAULT_BAR_YMAX = 0.5
+
+LOWER_IS_BETTER_METRICS = {
+    "proj_manifold_dist",
+    "gt_to_learned_mean",
+    "learned_to_gt_mean",
+    "bidirectional_chamfer",
+    "train_seconds",
+}
+
+HIGHER_IS_BETTER_METRICS = {
+    "pred_precision",
+}
 
 
 def _split_csv(text: str | None, default: Iterable[str] | None = None) -> list[str]:
@@ -110,23 +125,37 @@ def _load_from_eval_jsons(bench_dir: str) -> list[dict[str, object]]:
         if not os.path.isdir(method_dir):
             continue
         method = os.path.basename(method_dir)
-        for p in sorted(glob.glob(os.path.join(method_dir, "*_eval.json"))):
+        for p in sorted(glob.glob(os.path.join(method_dir, "**", "*_eval.json"), recursive=True)):
             try:
                 with open(p, "r", encoding="utf-8") as f:
                     d = json.load(f)
             except Exception:
                 continue
-            dataset = os.path.basename(p)
-            if dataset.endswith("_eval.json"):
-                dataset = dataset[: -len("_eval.json")]
-            if dataset.endswith(f"_{method}"):
-                dataset = dataset[: -(len(method) + 1)]
-            dataset = dataset.replace("_oncl", "")
+            parent = os.path.basename(os.path.dirname(p))
+            if os.path.abspath(os.path.dirname(p)) != os.path.abspath(method_dir):
+                dataset = parent
+                stem = os.path.basename(p)[: -len("_eval.json")]
+                seed = "last"
+                marker = f"_{method}_seed"
+                if marker in stem:
+                    seed = stem.rsplit(marker, 1)[1]
+                else:
+                    marker = "_seed"
+                    if marker in stem:
+                        seed = stem.rsplit(marker, 1)[1]
+            else:
+                dataset = os.path.basename(p)
+                if dataset.endswith("_eval.json"):
+                    dataset = dataset[: -len("_eval.json")]
+                if dataset.endswith(f"_{method}"):
+                    dataset = dataset[: -(len(method) + 1)]
+                dataset = dataset.replace("_oncl", "")
+                seed = "last"
             rows.append(
                 {
                     "dataset": dataset,
                     "method": method,
-                    "seed": "last",
+                    "seed": seed,
                     "bidirectional_chamfer": _to_float(d.get("bidirectional_chamfer", "")),
                     "proj_manifold_dist": _to_float(d.get("proj_manifold_dist", "")),
                     "pred_precision": _to_float(d.get("pred_precision", "")),
@@ -186,6 +215,435 @@ def _compute_mean_std(samples: dict[str, dict[str, list[float]]], datasets: list
                 means[mi, di] = float(np.mean(vals))
                 stds[mi, di] = float(np.std(vals, ddof=0))
     return means, stds
+
+
+def _betacf(a: float, b: float, x: float) -> float:
+    max_iter = 200
+    eps = 3.0e-14
+    fpmin = 1.0e-300
+    qab = a + b
+    qap = a + 1.0
+    qam = a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    if abs(d) < fpmin:
+        d = fpmin
+    d = 1.0 / d
+    h = d
+    for m in range(1, max_iter + 1):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fpmin:
+            d = fpmin
+        c = 1.0 + aa / c
+        if abs(c) < fpmin:
+            c = fpmin
+        d = 1.0 / d
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fpmin:
+            d = fpmin
+        c = 1.0 + aa / c
+        if abs(c) < fpmin:
+            c = fpmin
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < eps:
+            break
+    return h
+
+
+def _regularized_incomplete_beta(a: float, b: float, x: float) -> float:
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    bt = math.exp(math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log1p(-x))
+    if x < (a + 1.0) / (a + b + 2.0):
+        return bt * _betacf(a, b, x) / a
+    return 1.0 - bt * _betacf(b, a, 1.0 - x) / b
+
+
+def _student_t_cdf(t: float, df: float) -> float:
+    if not np.isfinite(t) or df <= 0:
+        return np.nan
+    x = df / (df + t * t)
+    ib = _regularized_incomplete_beta(0.5 * df, 0.5, x)
+    if t >= 0:
+        return 1.0 - 0.5 * ib
+    return 0.5 * ib
+
+
+def _paired_t_pvalue_good_direction(diff_good_direction: np.ndarray) -> tuple[float, float]:
+    diff = np.asarray(diff_good_direction, dtype=np.float64)
+    diff = diff[np.isfinite(diff)]
+    if diff.size < 2:
+        return np.nan, np.nan
+    sd = float(np.std(diff, ddof=1))
+    if sd <= 1e-12:
+        mean = float(np.mean(diff))
+        if mean > 0:
+            return math.inf, 0.0
+        if mean < 0:
+            return -math.inf, 1.0
+        return 0.0, 0.5
+    stat = float(np.mean(diff) / (sd / math.sqrt(diff.size)))
+    p_value = 1.0 - _student_t_cdf(stat, diff.size - 1)
+    return stat, float(min(max(p_value, 0.0), 1.0))
+
+
+def _sig_star(p_value: float) -> str:
+    if not np.isfinite(p_value):
+        return ""
+    if p_value < 0.001:
+        return "***"
+    if p_value < 0.01:
+        return "**"
+    if p_value < 0.05:
+        return "*"
+    return ""
+
+
+def _holm_adjust(p_values: list[float]) -> list[float]:
+    n = len(p_values)
+    if n == 0:
+        return []
+    order = sorted(range(n), key=lambda i: (not np.isfinite(p_values[i]), p_values[i]))
+    adjusted = [np.nan] * n
+    running = 0.0
+    for k, idx in enumerate(order):
+        p = float(p_values[idx])
+        if not np.isfinite(p):
+            adjusted[idx] = np.nan
+            continue
+        running = max(running, (n - k) * p)
+        adjusted[idx] = min(1.0, running)
+    return adjusted
+
+
+def _average_tie_ranks(values: list[float], *, lower_is_better: bool) -> list[float]:
+    indexed = [(i, float(v)) for i, v in enumerate(values)]
+    indexed.sort(key=lambda iv: iv[1] if lower_is_better else -iv[1])
+    ranks = [np.nan] * len(values)
+    i = 0
+    while i < len(indexed):
+        j = i + 1
+        while j < len(indexed) and indexed[j][1] == indexed[i][1]:
+            j += 1
+        avg_rank = 0.5 * ((i + 1) + j)
+        for k in range(i, j):
+            ranks[indexed[k][0]] = avg_rank
+        i = j
+    return ranks
+
+
+def _exact_wilcoxon_signed_rank_one_sided(diff_good_direction: np.ndarray) -> tuple[float, float]:
+    """Exact one-sided Wilcoxon signed-rank test for H1: paired differences > 0."""
+    diff = np.asarray(diff_good_direction, dtype=np.float64)
+    diff = diff[np.isfinite(diff)]
+    diff = diff[np.abs(diff) > 1e-12]
+    if diff.size == 0:
+        return 0.0, 1.0
+    abs_ranks = np.asarray(_average_tie_ranks([float(x) for x in np.abs(diff)], lower_is_better=True), dtype=np.float64)
+    observed = float(np.sum(abs_ranks[diff > 0]))
+    total = 1 << int(diff.size)
+    ge = 0
+    for mask in range(total):
+        w_plus = 0.0
+        for i in range(int(diff.size)):
+            if (mask >> i) & 1:
+                w_plus += float(abs_ranks[i])
+        if w_plus >= observed - 1e-12:
+            ge += 1
+    return observed, float(ge / total)
+
+
+def _compute_cross_dataset_rank_comparison(
+    *,
+    rows: list[dict[str, object]],
+    datasets: list[str],
+    methods: list[str],
+    baselines: list[str],
+    metric: str,
+    alpha: float,
+) -> dict[str, object]:
+    if metric not in LOWER_IS_BETTER_METRICS and metric not in HIGHER_IS_BETTER_METRICS:
+        return {}
+    lower_is_better = metric in LOWER_IS_BETTER_METRICS
+    means: dict[tuple[str, str], float] = {}
+    ranks: dict[tuple[str, str], float] = {}
+    used_datasets: list[str] = []
+
+    for d in datasets:
+        ds_means: list[float] = []
+        ds_methods: list[str] = []
+        for m in methods:
+            vals = _vals_from_rows(rows, d, m, metric)
+            if vals.size == 0:
+                continue
+            mu = float(np.mean(vals))
+            if not np.isfinite(mu):
+                continue
+            means[(d, m)] = mu
+            ds_means.append(mu)
+            ds_methods.append(m)
+        if len(ds_methods) != len(methods):
+            continue
+        ds_ranks = _average_tie_ranks(ds_means, lower_is_better=lower_is_better)
+        for m, rank in zip(ds_methods, ds_ranks):
+            ranks[(d, m)] = float(rank)
+        used_datasets.append(d)
+
+    average_ranks: dict[str, float] = {}
+    for m in methods:
+        vals = [ranks[(d, m)] for d in used_datasets if (d, m) in ranks]
+        average_ranks[m] = float(np.mean(vals)) if vals else np.nan
+
+    comparisons: list[dict[str, object]] = []
+    raw_p: list[float] = []
+    for b in baselines:
+        if b == "oncl" or b not in methods:
+            continue
+        diffs = []
+        for d in used_datasets:
+            if (d, "oncl") not in ranks or (d, b) not in ranks:
+                continue
+            diffs.append(float(ranks[(d, b)] - ranks[(d, "oncl")]))
+        diff_arr = np.asarray(diffs, dtype=np.float64)
+        w_stat, p_value = _exact_wilcoxon_signed_rank_one_sided(diff_arr)
+        raw_p.append(p_value)
+        comparisons.append(
+            {
+                "baseline": b,
+                "n_datasets": int(diff_arr.size),
+                "oncl_average_rank": average_ranks.get("oncl", np.nan),
+                "baseline_average_rank": average_ranks.get(b, np.nan),
+                "mean_rank_diff_good_direction": float(np.mean(diff_arr)) if diff_arr.size else np.nan,
+                "wilcoxon_w_plus": float(w_stat),
+                "p_value": float(p_value),
+            }
+        )
+    adjusted = _holm_adjust(raw_p)
+    for r, p_adj in zip(comparisons, adjusted):
+        r["holm_p_value"] = float(p_adj)
+        r["star"] = _sig_star(float(p_adj)) if np.isfinite(float(p_adj)) and float(p_adj) < alpha else ""
+        r["significant"] = bool(r["star"])
+
+    return {
+        "datasets": used_datasets,
+        "methods": methods,
+        "means": means,
+        "ranks": ranks,
+        "average_ranks": average_ranks,
+        "comparisons": comparisons,
+    }
+
+
+def _save_rank_comparison_outputs(
+    *,
+    outdir: str,
+    metric_stem: str,
+    result: dict[str, object],
+) -> tuple[str, str, str]:
+    os.makedirs(outdir, exist_ok=True)
+    datasets = list(result.get("datasets", []))
+    methods = list(result.get("methods", []))
+    ranks = result.get("ranks", {})
+    avg_ranks = result.get("average_ranks", {})
+    comparisons = list(result.get("comparisons", []))
+
+    rank_csv = os.path.join(outdir, f"{metric_stem}_cross_dataset_ranks.csv")
+    with open(rank_csv, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["dataset", "Dataset"] + [_to_display_method(m) for m in methods])
+        for d in datasets:
+            w.writerow(
+                [d, _to_display_dataset(d)]
+                + [f"{float(ranks[(d, m)]):.6g}" if (d, m) in ranks else "" for m in methods]
+            )
+
+    comparison_csv = os.path.join(outdir, f"{metric_stem}_cross_dataset_rank_comparison.csv")
+    with open(comparison_csv, "w", encoding="utf-8", newline="") as f:
+        fieldnames = [
+            "baseline",
+            "Baseline",
+            "n_datasets",
+            "oncl_average_rank",
+            "baseline_average_rank",
+            "mean_rank_diff_good_direction",
+            "wilcoxon_w_plus",
+            "p_value",
+            "holm_p_value",
+            "star",
+            "significant",
+        ]
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        for r in comparisons:
+            row = dict(r)
+            row["Baseline"] = _to_display_method(str(row.get("baseline", "")))
+            w.writerow({k: row.get(k, "") for k in fieldnames})
+
+    md_path = os.path.join(outdir, f"{metric_stem}_cross_dataset_rank_comparison.md")
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("## Average ranks\n\n")
+        f.write("| Method | Average rank | n datasets |\n")
+        f.write("|---|---:|---:|\n")
+        for m in sorted(methods, key=lambda x: float(avg_ranks.get(x, np.inf))):
+            f.write(f"| {_to_display_method(m)} | {float(avg_ranks.get(m, np.nan)):.3f} | {len(datasets)} |\n")
+        f.write("\n## ONCL rank comparisons\n\n")
+        f.write("| Comparison | n datasets | ONCL avg rank | Baseline avg rank | Mean rank diff | W+ | p | Holm p | sig |\n")
+        f.write("|---|---:|---:|---:|---:|---:|---:|---:|---|\n")
+        for r in comparisons:
+            star = str(r.get("star", "")) if str(r.get("star", "")) else "n.s."
+            f.write(
+                f"| ONCL vs {_to_display_method(str(r['baseline']))} | "
+                f"{int(r['n_datasets'])} | "
+                f"{float(r['oncl_average_rank']):.3f} | "
+                f"{float(r['baseline_average_rank']):.3f} | "
+                f"{float(r['mean_rank_diff_good_direction']):+.3f} | "
+                f"{float(r['wilcoxon_w_plus']):.3g} | "
+                f"{float(r['p_value']):.4g} | "
+                f"{float(r['holm_p_value']):.4g} | "
+                f"{star} |\n"
+            )
+        f.write(
+            "\nPositive mean rank difference means ONCL has a better, lower rank. "
+            "P-values are one-sided exact Wilcoxon signed-rank tests across datasets; "
+            "Holm p-values correct the ONCL-vs-baseline comparisons.\n"
+        )
+
+    return rank_csv, comparison_csv, md_path
+
+
+def _paired_arrays_by_seed(
+    rows: list[dict[str, object]],
+    *,
+    dataset: str,
+    method_a: str,
+    method_b: str,
+    metric: str,
+) -> tuple[list[str], np.ndarray, np.ndarray]:
+    vals_a: dict[str, float] = {}
+    vals_b: dict[str, float] = {}
+    for r in rows:
+        if str(r.get("dataset", "")).strip() != str(dataset):
+            continue
+        seed = str(r.get("seed", "")).strip()
+        method = str(r.get("method", "")).strip()
+        v = _to_float(r.get(metric, np.nan))
+        if not seed or not np.isfinite(v):
+            continue
+        if method == method_a:
+            vals_a[seed] = float(v)
+        elif method == method_b:
+            vals_b[seed] = float(v)
+    common = sorted(set(vals_a) & set(vals_b), key=lambda s: (not s.isdigit(), int(s) if s.isdigit() else s))
+    return common, np.asarray([vals_a[s] for s in common], dtype=np.float64), np.asarray([vals_b[s] for s in common], dtype=np.float64)
+
+
+def _compute_oncl_paired_t_significance(
+    *,
+    rows: list[dict[str, object]],
+    datasets: list[str],
+    baselines: list[str],
+    metric: str,
+    alpha: float,
+) -> dict[tuple[str, str], dict[str, object]]:
+    out: dict[tuple[str, str], dict[str, object]] = {}
+    if metric not in LOWER_IS_BETTER_METRICS and metric not in HIGHER_IS_BETTER_METRICS:
+        return out
+    for d in datasets:
+        for b in baselines:
+            seeds, oncl_vals, base_vals = _paired_arrays_by_seed(
+                rows,
+                dataset=d,
+                method_a="oncl",
+                method_b=b,
+                metric=metric,
+            )
+            if oncl_vals.size < 2 or base_vals.size < 2:
+                continue
+            if metric in LOWER_IS_BETTER_METRICS:
+                diff = base_vals - oncl_vals
+            else:
+                diff = oncl_vals - base_vals
+            t_stat, p_value = _paired_t_pvalue_good_direction(diff)
+            star = _sig_star(p_value) if float(np.mean(diff)) > 0 and p_value < alpha else ""
+            out[(d, b)] = {
+                "dataset": d,
+                "baseline": b,
+                "n": int(len(seeds)),
+                "oncl_mean": float(np.mean(oncl_vals)),
+                "baseline_mean": float(np.mean(base_vals)),
+                "mean_diff_good_direction": float(np.mean(diff)),
+                "t_stat": float(t_stat),
+                "p_value": float(p_value),
+                "star": star,
+                "significant": bool(star),
+            }
+    return out
+
+
+def _save_significance_csv(path: str, sig: dict[tuple[str, str], dict[str, object]]) -> None:
+    if not sig:
+        return
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fieldnames = [
+        "dataset",
+        "Dataset",
+        "baseline",
+        "Baseline",
+        "n",
+        "oncl_mean",
+        "baseline_mean",
+        "mean_diff_good_direction",
+        "t_stat",
+        "p_value",
+        "star",
+        "significant",
+    ]
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        for d, b in sorted(sig.keys()):
+            r = sig[(d, b)]
+            row = dict(r)
+            row["Dataset"] = _to_display_dataset(d)
+            row["Baseline"] = _to_display_method(b)
+            w.writerow({k: row.get(k, "") for k in fieldnames})
+
+
+def _save_significance_md(path: str, sig: dict[tuple[str, str], dict[str, object]]) -> None:
+    if not sig:
+        return
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    cols = ["Dataset", "Baseline", "n", "ONCL", "Baseline mean", "Delta", "t", "p", "sig"]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("| " + " | ".join(cols) + " |\n")
+        f.write("|" + "|".join(["---"] * len(cols)) + "|\n")
+        for d, b in sorted(sig.keys()):
+            r = sig[(d, b)]
+            f.write(
+                "| "
+                + " | ".join(
+                    [
+                        _to_display_dataset(d),
+                        _to_display_method(b),
+                        str(r["n"]),
+                        f"{float(r['oncl_mean']):.4f}",
+                        f"{float(r['baseline_mean']):.4f}",
+                        f"{float(r['mean_diff_good_direction']):+.4f}",
+                        f"{float(r['t_stat']):.4g}",
+                        f"{float(r['p_value']):.4g}",
+                        str(r["star"]) if str(r["star"]) else "n.s.",
+                    ]
+                )
+                + " |\n"
+            )
 
 
 def _plot_grouped_bar_with_error(
@@ -301,20 +759,20 @@ def _save_cross_dataset_csv(path: str, methods: list[str], datasets: list[str], 
 
 
 PAPER_DATASETS = [
-    "2d_ellipse",
     "2d_planar_arm_line_n2",
-    "2d_sparse_sine",
     "3d_planar_arm_line_n3_traj",
     "3d_spatial_arm_ellip_n3_traj",
     "3d_twosphere_traj",
     "3d_vz_2d_ellipse_traj",
-    "3d_torus_surface_traj",
+    "linked_curves_3d",
+    "multi_handle_4d",
     "6d_spatial_arm_up_n6_py_traj",
-    "6d_workspace_sine_surface_pose_traj",
-    "12d_dual_arm_traj"
+    "6d_surf_normal_traj",
+    "12d_dual_arm_traj",
 ]
 
 PAPER_DATASET_LABELS = {
+    "RealKuka": "RealKuka",
     "2d_ellipse": "2DEllipse",
     "2d_planar_arm_line_n2": "2DPlanarArmLine",
     "2d_sparse_sine": "2DSineSparse",
@@ -324,8 +782,11 @@ PAPER_DATASET_LABELS = {
     "3d_vz_2d_ellipse_traj": "3DTwistEllipse",
     "3d_torus_surface_traj": "3DTorus",
     "6d_spatial_arm_up_n6_py_traj": "6DArmUp",
-    "6d_workspace_sine_surface_pose_traj": "6DSinePose",
+    "6d_surf_normal": "6DSurfNormal",
+    "6d_surf_normal_traj": "6DSurfNormal",
     "12d_dual_arm_traj": "12DDualArm",
+    "linked_curves_3d": "3DLinkedCurves",
+    "multi_handle_4d": "4DMultiHandle",
 }
 
 METRIC_DISPLAY_LABELS = {
@@ -353,12 +814,11 @@ TRAJ_COMPARE_PAIRS = [
     ("3d_spatial_arm_ellip_n3", "3d_spatial_arm_ellip_n3_traj", "3DArmEllipse"),
     # ("3d_twosphere", "3d_twosphere_traj", "3DTwoSphere"),
     # ("3d_vz_2d_ellipse", "3d_vz_2d_ellipse_traj", "3DTwistedEliip"),
-    ("3d_torus_surface", "3d_torus_surface_traj", "3DTorus"),
-    ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj", "6DSinePose"),
+    ("6d_surf_normal", "6d_surf_normal_traj", "6DSurfNormal"),
 ]
 
 TRAIN_TIME_TABLE_DATASETS = [
-    "6d_workspace_sine_surface_pose_traj",
+    "6d_surf_normal_traj",
     "3d_spatial_arm_ellip_n3_traj",
     "6d_spatial_arm_up_n6_py_traj",
 ]
@@ -366,11 +826,12 @@ TRAIN_TIME_TABLE_DATASETS = [
 CODIM_COMPARE_DATASETS = [
     "3d_spatial_arm_ellip_n3_traj",
     # "3d_vz_2d_ellipse_traj",
-    "6d_workspace_sine_surface_pose_traj",
+    "6d_surf_normal_traj",
     "6d_spatial_arm_up_n6_py_traj",
 ]
 
 CODIM_HINTS = {
+    "RealKuka": 4,
     "2d_ellipse": 1,
     "2d_planar_arm_line_n2": 1,
     "2d_sparse_sine": 1,
@@ -384,11 +845,13 @@ CODIM_HINTS = {
     "3d_vz_2d_ellipse_traj": 2,
     "3d_torus_surface": 1,
     "3d_torus_surface_traj": 1,
-    "6d_workspace_sine_surface_pose": 2,
-    "6d_workspace_sine_surface_pose_traj": 2,
+    "6d_surf_normal": 2,
+    "6d_surf_normal_traj": 2,
     "6d_spatial_arm_up_n6_py": 2,
     "6d_spatial_arm_up_n6_py_traj": 2,
     "12d_dual_arm_traj": 10,
+    "linked_curves_3d": 2,
+    "multi_handle_4d": 2,
 }
 
 METHOD_DISPLAY_LABELS = {
@@ -413,7 +876,7 @@ def _to_compact_display_dataset(dataset: str) -> str:
         "3DTwistEllipse": "3DTwistEllip",
         "3DPlanarArmLine": "3DPlanarArm",
         "2DPlanarArmLine": "2DPlanarArm",
-        "6DSinePose": "6DSinePose",
+        "6DSurfNormal": "6DSurfNormal",
         "12DDualArm": "12DDualArm",
     }
     return compact.get(label, label)
@@ -425,7 +888,7 @@ def _to_compact_display_dataset_multiline(dataset: str) -> str:
         "3DArmEllipse": "3DArm\nEllip",
         "3DTwistEllipse": "3DTwist\nEllip",
         "6DArmUp": "6DArm\nUp",
-        "6DSinePose": "6DSine\nPose",
+        "6DSurfNormal": "6DSurf\nNormal",
     }
     return compact.get(label, _to_compact_display_dataset(dataset))
 
@@ -548,6 +1011,18 @@ def _plot_traj_overlay_compare(
                     alpha=0.82,
                     zorder=2,
                 )
+                ax.errorbar(
+                    x,
+                    mean_traj,
+                    yerr=std_traj,
+                    fmt="none",
+                    ecolor=color_map[m],
+                    elinewidth=0.9,
+                    capsize=2.0,
+                    capthick=0.9,
+                    alpha=0.95,
+                    zorder=5,
+                )
             if np.isfinite(mean_base):
                 ax.bar(
                     x,
@@ -558,6 +1033,18 @@ def _plot_traj_overlay_compare(
                     linewidth=1.6,
                     hatch="///",
                     zorder=4,
+                )
+                ax.errorbar(
+                    x,
+                    mean_base,
+                    yerr=std_base,
+                    fmt="none",
+                    ecolor="#6B7280",
+                    elinewidth=0.85,
+                    capsize=1.4,
+                    capthick=0.85,
+                    alpha=0.95,
+                    zorder=6,
                 )
 
     for i in range(n_groups - 1):
@@ -601,6 +1088,7 @@ def _plot_paper_disterror_grouped_bar(
     datasets: list[str],
     methods: list[str],
     samples: dict[str, dict[str, list[float]]],
+    ymax: float | None = None,
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -638,6 +1126,20 @@ def _plot_paper_disterror_grouped_bar(
             capthick=1.0,
             zorder=3,
         )
+        if ymax is not None and np.isfinite(float(ymax)):
+            for x_i, mean_i in zip(pos, means[mi]):
+                if np.isfinite(mean_i) and float(mean_i) > float(ymax):
+                    ax.text(
+                        float(x_i),
+                        float(ymax) * 0.965,
+                        f"{float(mean_i):.2f}",
+                        ha="center",
+                        va="top",
+                        fontsize=6.7,
+                        color="#111827",
+                        rotation=90,
+                        zorder=5,
+                    )
 
     for i in range(n_ds - 1):
         ax.axvline(float(i) + 0.5, color="#6B7280", linestyle="-", linewidth=1.0, alpha=0.35, zorder=0)
@@ -647,6 +1149,8 @@ def _plot_paper_disterror_grouped_bar(
     ax.tick_params(axis="x", labelsize=7.5)
     ax.tick_params(axis="y", labelsize=8)
     ax.set_ylabel(ylabel, fontsize=9)
+    if ymax is not None and np.isfinite(float(ymax)) and float(ymax) > 0.0:
+        ax.set_ylim(0.0, float(ymax))
     ax.grid(axis="y", alpha=0.22, zorder=0)
     ax.legend(frameon=False, ncol=min(4, len(methods)), loc="upper center", bbox_to_anchor=(0.5, -0.25), fontsize=7)
 
@@ -732,10 +1236,13 @@ def _plot_codim_gt1_oncl_compare(
     for mi, m in enumerate(methods):
         xs = centers + (-0.5 if mi == 0 else 0.5) * width
         vals = []
+        errs = []
         for d in ds_gt1:
             arr = _vals_from_rows(rows, d, m, metric)
             vals.append(float(np.mean(arr)) if arr.size > 0 else np.nan)
+            errs.append(float(np.std(arr, ddof=0)) if arr.size > 0 else np.nan)
         vals_np = np.asarray(vals, dtype=np.float64)
+        errs_np = np.asarray(errs, dtype=np.float64)
         ok = np.isfinite(vals_np)
         if np.any(ok):
             ax.bar(
@@ -749,18 +1256,35 @@ def _plot_codim_gt1_oncl_compare(
                 label=_to_display_method(m),
                 zorder=2,
             )
+            ax.errorbar(
+                xs[ok],
+                vals_np[ok],
+                yerr=errs_np[ok],
+                fmt="none",
+                ecolor="#1F2937",
+                elinewidth=0.9,
+                capsize=1.8,
+                capthick=0.9,
+                alpha=0.95,
+                zorder=3,
+            )
 
     for i in range(len(ds_gt1) - 1):
         ax.axvline(float(i) + 0.5, color="#6B7280", linestyle="-", linewidth=1.1, alpha=0.45, zorder=0)
 
     ax.set_xticks(centers)
     ax.set_xticklabels(labels)
-    ax.tick_params(axis="x", labelsize=6.8, pad=4)
-    ax.tick_params(axis="y", labelsize=9)
-    ax.set_ylabel(ylabel, fontsize=10, labelpad=2)
+    ax.set_xlim(-0.48, float(len(ds_gt1)) - 0.52)
+    for label in ax.get_xticklabels():
+        label.set_rotation(12)
+        label.set_ha("right")
+        label.set_rotation_mode("anchor")
+    ax.tick_params(axis="x", labelsize=6.8, pad=2)
+    ax.tick_params(axis="y", labelsize=8)
+    ax.set_ylabel(ylabel, fontsize=9, labelpad=1)
     ax.grid(axis="y", alpha=0.22, zorder=0)
-    ax.legend(frameon=False, ncol=2, loc="upper center", bbox_to_anchor=(0.5, -0.22), fontsize=6.4, borderaxespad=0.0)
-    fig.subplots_adjust(left=0.21, right=0.99, top=0.93, bottom=0.25)
+    ax.legend(frameon=False, ncol=1, loc="upper left", bbox_to_anchor=(0.02, 0.98), fontsize=6.2, borderaxespad=0.0)
+    fig.subplots_adjust(left=0.22, right=0.99, top=0.96, bottom=0.22)
     fig.savefig(out_path, dpi=300, bbox_inches=None, pad_inches=0.01)
     plt.close(fig)
 
@@ -827,17 +1351,38 @@ def _write_training_time_table(
 
 
 def main() -> None:
+    def _parse_bool(s: str | bool) -> bool:
+        if isinstance(s, bool):
+            return s
+        v = str(s).strip().lower()
+        if v in {"1", "true", "t", "yes", "y", "on"}:
+            return True
+        if v in {"0", "false", "f", "no", "n", "off"}:
+            return False
+        raise argparse.ArgumentTypeError(f"invalid boolean value: {s!r}")
+
     p = argparse.ArgumentParser(description="Paper-style benchmark grouped bar charts with display dataset names.")
-    p.add_argument("--bench", type=str, default="paper_mix_2d_3d6d_traj_vs_nontraj_7seed", help="Benchmark name (under outputs/bench) or absolute path.")
+    p.add_argument("--bench", type=str, default="paper_main_10env_15seed", help="Benchmark name (under outputs/bench) or absolute path.")
     p.add_argument("--methods", type=str, default="dataaug,oncl,vae,ecomann", help="Comma-separated methods. Default: dataaug,oncl,vae,ecomann")
     p.add_argument("--datasets", type=str, default=None, help="Comma-separated dataset ids. Default: paper preset (2D non-traj + 3D/6D traj).")
     p.add_argument("--metrics", type=str, default="proj_manifold_dist,gt_to_learned", help="Comma-separated metrics to plot.")
     p.add_argument("--analysis-dir", type=str, default="analysis_bars_paper", help="Output dir under bench dir.")
     p.add_argument("--fill-missing-zero", action="store_true", default=True)
     p.add_argument("--no-fill-missing-zero", dest="fill_missing_zero", action="store_false")
-    p.add_argument("--traj-overlay-compare", default=True, help="Also plot traj vs non-traj overlay bars for selected dataset pairs.")
+    p.add_argument("--traj-overlay-compare", type=_parse_bool, default=True, help="Also plot traj vs non-traj overlay bars for selected dataset pairs.")
     p.add_argument("--traj-overlay-methods", type=str, default="oncl,ecomann", help="Comma-separated methods for traj/non-traj overlay plot only. Default: use --methods.")
-    p.add_argument("--codim-gt1-compare", default=True, help="Also plot codim>1 dataset comparison between oncl and igr.")
+    p.add_argument("--codim-gt1-compare", type=_parse_bool, default=True, help="Also plot codim>1 dataset comparison between oncl and igr.")
+    p.add_argument("--significance", action="store_true", help="Write ONCL-vs-baseline one-sided paired t-test significance tables.")
+    p.add_argument("--significance-baselines", type=str, default="dataaug,vae,ecomann", help="Baselines compared against ONCL when --significance is set.")
+    p.add_argument("--significance-alpha", type=float, default=0.05, help="Alpha threshold for significance star annotations.")
+    p.add_argument("--rank-comparison", action="store_true", help="Write cross-dataset average-rank and ONCL-vs-baseline Holm-corrected rank tests.")
+    p.add_argument("--rank-comparison-baselines", type=str, default="dataaug,vae,ecomann", help="Baselines compared against ONCL for --rank-comparison.")
+    p.add_argument(
+        "--bar-ymax",
+        type=float,
+        default=DEFAULT_BAR_YMAX,
+        help="Y-axis cap for grouped bar plots; off-scale bar means are labeled. Default: 0.5.",
+    )
     args = p.parse_args()
 
     bench_dir = _resolve_bench_dir(args.bench)
@@ -859,6 +1404,12 @@ def main() -> None:
     overlay_methods = _split_csv(args.traj_overlay_methods, methods)
     overlay_methods = [m for m in overlay_methods if m in all_methods_in_rows]
     overlay_methods = _sort_methods_for_paper(overlay_methods)
+    significance_baselines = _split_csv(args.significance_baselines, [])
+    significance_baselines = [m for m in significance_baselines if m in all_methods_in_rows and m != "oncl"]
+    significance_baselines = _sort_methods_for_paper(significance_baselines)
+    rank_comparison_baselines = _split_csv(args.rank_comparison_baselines, [])
+    rank_comparison_baselines = [m for m in rank_comparison_baselines if m in all_methods_in_rows and m != "oncl"]
+    rank_comparison_baselines = _sort_methods_for_paper(rank_comparison_baselines)
 
     datasets = _split_csv(args.datasets, None)
     if not datasets:
@@ -887,6 +1438,39 @@ def main() -> None:
         csv_name = f"{metric_stem}_bar_stats.csv"
         out_png = os.path.join(outdir, png_name)
         out_csv = os.path.join(outdir, csv_name)
+        if bool(args.significance) and "oncl" in methods and str(metric) == "proj_manifold_dist":
+            sig_raw = _compute_oncl_paired_t_significance(
+                rows=metric_rows,
+                datasets=metric_datasets,
+                baselines=significance_baselines,
+                metric=metric,
+                alpha=float(args.significance_alpha),
+            )
+            sig_csv = os.path.join(outdir, f"{metric_stem}_oncl_paired_t_significance.csv")
+            sig_md = os.path.join(outdir, f"{metric_stem}_oncl_paired_t_significance.md")
+            _save_significance_csv(sig_csv, sig_raw)
+            _save_significance_md(sig_md, sig_raw)
+            if sig_raw:
+                print(f"[saved] {sig_csv}")
+                print(f"[saved] {sig_md}")
+        if bool(args.rank_comparison) and "oncl" in methods and str(metric) == "proj_manifold_dist":
+            rank_result = _compute_cross_dataset_rank_comparison(
+                rows=metric_rows,
+                datasets=metric_datasets,
+                methods=methods,
+                baselines=rank_comparison_baselines,
+                metric=metric,
+                alpha=float(args.significance_alpha),
+            )
+            if rank_result:
+                rank_csv, rank_cmp_csv, rank_md = _save_rank_comparison_outputs(
+                    outdir=outdir,
+                    metric_stem=metric_stem,
+                    result=rank_result,
+                )
+                print(f"[saved] {rank_csv}")
+                print(f"[saved] {rank_cmp_csv}")
+                print(f"[saved] {rank_md}")
         if str(metric) in {
             "proj_manifold_dist",
             "gt_to_learned_mean",
@@ -900,6 +1484,7 @@ def main() -> None:
                 datasets=display_datasets,
                 methods=display_methods,
                 samples=samples,
+                ymax=args.bar_ymax,
             )
         else:
             _plot_grouped_bar_with_error(

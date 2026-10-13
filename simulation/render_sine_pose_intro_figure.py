@@ -500,14 +500,14 @@ def _select_robot_pose_path(
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Render a single PyBullet intro figure for the sine-pose task.")
+    ap = argparse.ArgumentParser(description="Render a single PyBullet intro figure for the SurfNormal task.")
     ap.add_argument("--dataset-config", default=DEFAULT_DATASET_CONFIG, help="Dataset config JSON.")
     ap.add_argument(
         "--outdir",
-        default="outputs/bench/paper_mix_2d_3d6d_traj_vs_nontraj_7seed/oncl/sinepose_intro_figure",
+        default="outputs/bench/paper_mix_2d_3d6d_traj_vs_nontraj_7seed/oncl/surfnormal_intro_figure",
         help="Output directory.",
     )
-    ap.add_argument("--image-name", default="sinepose_intro_figure.png", help="Output image filename.")
+    ap.add_argument("--image-name", default="surfnormal_intro_figure.png", help="Output image filename.")
     ap.add_argument("--seed", type=int, default=0, help="Dataset generation seed.")
     ap.add_argument("--n-demos", type=int, default=2, help="Number of demonstration trajectories to draw.")
     ap.add_argument("--demo-start-index", type=int, default=0, help="Start demo index for contiguous selection.")
@@ -636,7 +636,7 @@ def main() -> None:
     )
 
     summary: dict[str, object] = {
-        "task": "sinepose_intro_figure",
+        "task": "surfnormal_intro_figure",
         "dataset": DATASET_NAME,
         "dataset_config": os.path.abspath(_resolve_path(str(args.dataset_config))),
         "seed": int(args.seed),
@@ -740,7 +740,7 @@ def main() -> None:
         )
         imageio.imwrite(out_png, frame)
 
-    summary_path = os.path.join(outdir, "sinepose_intro_figure_summary.json")
+    summary_path = os.path.join(outdir, "surfnormal_intro_figure_summary.json")
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
     print(f"[saved] {out_png}")

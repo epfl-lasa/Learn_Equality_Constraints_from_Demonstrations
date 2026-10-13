@@ -6,6 +6,8 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 from matplotlib import animation
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 import numpy as np
 import torch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -33,11 +35,111 @@ from planning.planner import (
     pick_far_pair_workspace_planar,
     plan_path,
 )
-from methods.utils.projection import project_trajectory_numpy
+from methods.utils.projection import project_points_with_steps_numpy, project_trajectory_numpy
 from plotting.plot_common import plot_contour_traj_2d
 
 N6_WORKSPACE_VIS_POINTS_DEFAULT = 90
 ZERO_EPS_QUANTILE_DEFAULT = float(DEFAULT_EVAL_CFG["zero_eps_quantile"])
+
+
+def _split_polyline_on_jumps(points: np.ndarray, *, jump_factor: float = 8.0) -> list[np.ndarray]:
+    pts = np.asarray(points)
+    if pts.ndim != 2 or pts.shape[0] <= 1:
+        return [pts] if pts.size else []
+    steps = np.linalg.norm(np.diff(pts, axis=0), axis=1)
+    positive = steps[steps > 1e-12]
+    if len(positive) == 0:
+        return [pts]
+    med = float(np.median(positive))
+    if not np.isfinite(med) or med <= 0.0:
+        return [pts]
+    cut = np.flatnonzero(steps > float(jump_factor) * med) + 1
+    if len(cut) == 0:
+        return [pts]
+    bounds = np.concatenate([[0], cut, [pts.shape[0]]]).astype(np.int64)
+    return [pts[int(a): int(b)] for a, b in zip(bounds[:-1], bounds[1:]) if int(b) - int(a) > 1]
+
+
+def _curve_component_count(dataset_name: str | None) -> int | None:
+    name = str(dataset_name or "")
+    if "triplet" in name:
+        return 3
+    if (
+        "linked_curves_3d" in name
+        or "knot_spline_union_traj" in name
+        or "knot_spline_union" in name
+        or "nested_ellipses_union" in name
+        or "linked_ellipses_union" in name
+    ):
+        return 2
+    return None
+
+
+def _split_counts(total: int, component_count: int) -> list[int]:
+    if total <= 0 or component_count <= 0:
+        return []
+    n = min(int(component_count), int(total))
+    base = int(total) // n
+    out = [base for _ in range(n)]
+    out[-1] = int(total) - base * (n - 1)
+    return out
+
+
+def _split_gt_components(gt_points: np.ndarray | None, component_count: int | None) -> list[np.ndarray]:
+    if gt_points is None or len(gt_points) == 0:
+        return []
+    pts = np.asarray(gt_points, dtype=np.float32)
+    if component_count is None or component_count <= 1:
+        return [pts]
+    out: list[np.ndarray] = []
+    start = 0
+    for count in _split_counts(len(pts), int(component_count)):
+        end = start + int(count)
+        if end > start:
+            out.append(pts[start:end])
+        start = end
+    return out
+
+
+def _assign_points_to_gt_components(
+    points: np.ndarray,
+    gt_components: list[np.ndarray],
+) -> list[np.ndarray]:
+    pts = np.asarray(points, dtype=np.float32)
+    if len(pts) == 0 or len(gt_components) <= 1:
+        return [pts] if len(pts) else []
+
+    try:
+        from scipy.spatial import cKDTree  # type: ignore
+
+        dists = []
+        for comp in gt_components:
+            if len(comp) == 0:
+                dists.append(np.full((len(pts),), np.inf, dtype=np.float32))
+            else:
+                d, _ = cKDTree(np.asarray(comp, dtype=np.float32)).query(pts, k=1)
+                dists.append(np.asarray(d, dtype=np.float32))
+        labels = np.argmin(np.stack(dists, axis=1), axis=1)
+    except Exception:
+        dists = []
+        chunk = 512
+        for comp in gt_components:
+            comp_arr = np.asarray(comp, dtype=np.float32)
+            cur = np.full((len(pts),), np.inf, dtype=np.float32)
+            if len(comp_arr) > 0:
+                for s in range(0, len(pts), chunk):
+                    e = min(len(pts), s + chunk)
+                    d2 = np.sum((pts[s:e, None, :] - comp_arr[None, :, :]) ** 2, axis=2)
+                    cur[s:e] = np.sqrt(np.maximum(np.min(d2, axis=1), 0.0))
+            dists.append(cur)
+        labels = np.argmin(np.stack(dists, axis=1), axis=1)
+
+    grouped = []
+    for i in range(len(gt_components)):
+        part = pts[labels == i]
+        if len(part) > 0:
+            grouped.append(part)
+    return grouped
 
 
 def _proj_from_cfg(cfg: Any) -> tuple[float, int, int]:
@@ -397,8 +499,9 @@ def _plot_constraint_surface_paper_3d(
         p12 = cand[hc <= eps_h]
     else:
         p12 = pts[np.sqrt(f1 * f1 + f2 * f2) <= eps_h]
-    if len(p12) > 1200:
-        p12 = p12[np.random.choice(len(p12), size=1200, replace=False)]
+    learned_curve_max_points = int(getattr(cfg, "plot_learned_curve_max_points", 4096))
+    if len(p12) > learned_curve_max_points:
+        p12 = p12[np.random.choice(len(p12), size=learned_curve_max_points, replace=False)]
 
     gt_plot = None
     if dataset_name is not None:
@@ -406,6 +509,58 @@ def _plot_constraint_surface_paper_3d(
             gt_plot = resolve_gt_grid(str(dataset_name), cfg, x_train=x_train)
         except Exception:
             gt_plot = None
+    component_count = _curve_component_count(dataset_name)
+    gt_components = _split_gt_components(gt_plot, component_count)
+    learned_plot = None
+    if gt_plot is not None and len(gt_plot) > 0 and bool(getattr(cfg, "plot_project_gt_curve", True)):
+        try:
+            proj_alpha, proj_steps, proj_min_steps = _proj_from_cfg(cfg)
+            learned_plot, _ = project_points_with_steps_numpy(
+                model,
+                np.asarray(gt_plot, dtype=np.float32),
+                device=str(device),
+                proj_steps=int(proj_steps),
+                proj_alpha=float(proj_alpha),
+                proj_min_steps=int(proj_min_steps),
+                f_abs_stop=eps_h,
+            )
+            learned_plot = np.asarray(learned_plot, dtype=np.float32)
+        except Exception:
+            learned_plot = None
+    learned_plot_components = _split_gt_components(learned_plot, component_count)
+
+    focus_twist_ellipse = str(dataset_name) == "3d_vz_2d_ellipse_traj"
+    plot_mins = np.asarray(mins, dtype=np.float32).copy()
+    plot_maxs = np.asarray(maxs, dtype=np.float32).copy()
+    if focus_twist_ellipse:
+        zoom_parts: list[np.ndarray] = []
+        if gt_plot is not None and len(gt_plot) > 0:
+            zoom_parts.append(np.asarray(gt_plot, dtype=np.float32)[:, :3])
+        if learned_plot is not None and len(learned_plot) > 0:
+            zoom_parts.append(np.asarray(learned_plot, dtype=np.float32)[:, :3])
+        elif p12 is not None and len(p12) > 0:
+            zoom_parts.append(np.asarray(p12, dtype=np.float32)[:, :3])
+        if zoom_parts:
+            zoom_pts = np.concatenate(zoom_parts, axis=0)
+            zoom_pts = zoom_pts[np.isfinite(zoom_pts).all(axis=1)]
+            if len(zoom_pts) > 0:
+                zmin = zoom_pts.min(axis=0)
+                zmax = zoom_pts.max(axis=0)
+                span = np.maximum(zmax - zmin, 1e-6)
+                pad = np.maximum(0.06 * span, 0.02 * float(np.max(span)))
+                plot_mins = zmin - pad
+                plot_maxs = zmax + pad
+
+    compact = bool(getattr(cfg, "paper_plot_compact", False))
+    show_legend = bool(getattr(cfg, "paper_plot_show_legend", True))
+    is_linked_curves = str(dataset_name) == "linked_curves_3d"
+    axis_fontsize = 6 if compact else 8
+    tick_fontsize = 5 if compact else 7
+    legend_fontsize = 5 if compact else 7
+    tick_nbins = 3 if compact else 5
+    true_lw = 2.2 if compact else 3.2
+    learned_lw = 0.7 if compact else 0.85
+    surface_edge_lw = 0.06 if compact else 0.1
 
     def _order_curve_points(points: np.ndarray) -> np.ndarray:
         if points.ndim != 2 or points.shape[0] < 3:
@@ -428,6 +583,52 @@ def _plot_constraint_surface_paper_3d(
             current = nxt
         return points[np.asarray(order, dtype=np.int32)]
 
+    def _draw_curve_segments(
+        ax,
+        points: np.ndarray,
+        *,
+        color: str,
+        linewidth: float,
+        alpha: float,
+        label: str,
+        linestyle: str | tuple[int, tuple[float, ...]] = "-",
+        preserve_order: bool = False,
+        scatter_only: bool = False,
+        scatter_size: float = 1.6,
+    ) -> None:
+        if points is None or len(points) <= 1:
+            return
+        line = np.asarray(points, dtype=np.float32)
+        if not preserve_order:
+            line = _order_curve_points(line)
+        first = True
+        for seg in _split_polyline_on_jumps(line):
+            if len(seg) <= 1:
+                continue
+            if scatter_only:
+                ax.scatter(
+                    seg[:, 0],
+                    seg[:, 1],
+                    seg[:, 2],
+                    s=float(scatter_size),
+                    c=color,
+                    alpha=alpha,
+                    label=label if first else None,
+                    depthshade=False,
+                )
+            else:
+                ax.plot(
+                    seg[:, 0],
+                    seg[:, 1],
+                    seg[:, 2],
+                    color=color,
+                    linewidth=linewidth,
+                    alpha=alpha,
+                    linestyle=linestyle,
+                    label=label if first else None,
+                )
+            first = False
+
     def _latex_axis_label(lbl: str) -> str:
         s = str(lbl).strip()
         # q1 -> q_1 for paper-style math labels.
@@ -436,29 +637,40 @@ def _plot_constraint_surface_paper_3d(
         return s
 
     def _draw_common(ax) -> None:
-        ax.set_xlabel(_latex_axis_label(axis_labels[0]), fontsize=8, labelpad=1)
-        ax.set_ylabel(_latex_axis_label(axis_labels[1]), fontsize=8, labelpad=1)
+        if focus_twist_ellipse:
+            ax.set_xlabel("")
+            ax.set_ylabel("")
+            ax.set_zlabel("")
+        else:
+            ax.set_xlabel(_latex_axis_label(axis_labels[0]), fontsize=axis_fontsize, labelpad=0 if compact else 1)
+            ax.set_ylabel(_latex_axis_label(axis_labels[1]), fontsize=axis_fontsize, labelpad=0 if compact else 1)
         # Place q3 label near the top end of the z-axis itself.
         ax.set_zlabel("")
-        z_pad = 0.03 * float(maxs[2] - mins[2])
-        x_pad = 0.02 * float(maxs[0] - mins[0])
-        y_pad = 0.02 * float(maxs[1] - mins[1])
-        ax.text(
-            float(maxs[0] + x_pad),
-            float(maxs[1] + y_pad),
-            float(maxs[2] + z_pad),
-            _latex_axis_label(axis_labels[2]),
-            fontsize=8,
-        )
+        if not focus_twist_ellipse:
+            z_pad = 0.03 * float(maxs[2] - mins[2])
+            x_pad = 0.02 * float(maxs[0] - mins[0])
+            y_pad = 0.02 * float(maxs[1] - mins[1])
+            ax.text(
+                float(maxs[0] + x_pad),
+                float(maxs[1] + y_pad),
+                float(maxs[2] + z_pad),
+                _latex_axis_label(axis_labels[2]),
+                fontsize=axis_fontsize,
+            )
         # Pull tick labels closer to axes.
-        ax.tick_params(labelsize=7, pad=0)
-        ax.set_xlim(float(mins[0]), float(maxs[0]))
-        ax.set_ylim(float(mins[1]), float(maxs[1]))
-        ax.set_zlim(float(mins[2]), float(maxs[2]))
+        ax.tick_params(labelsize=tick_fontsize, pad=-2 if compact else 0)
+        ax.set_xlim(float(plot_mins[0]), float(plot_maxs[0]))
+        ax.set_ylim(float(plot_mins[1]), float(plot_maxs[1]))
+        ax.set_zlim(float(plot_mins[2]), float(plot_maxs[2]))
         # Increase tick density so ticks are not too sparse/far apart.
-        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
-        ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
-        ax.zaxis.set_major_locator(MaxNLocator(nbins=5))
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=tick_nbins))
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=tick_nbins))
+        ax.zaxis.set_major_locator(MaxNLocator(nbins=tick_nbins))
+        if focus_twist_ellipse:
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_zticklabels([])
+            ax.set_box_aspect((1.0, 1.0, 0.72))
         ax.set_proj_type("persp")
         ax.view_init(elev=28, azim=-42)
 
@@ -468,70 +680,170 @@ def _plot_constraint_surface_paper_3d(
             alpha=alpha,
             facecolor=color,
             edgecolor=(0, 0, 0, 0.08),
-            linewidth=0.1,
+            linewidth=surface_edge_lw,
             label=label,
         )
         ax.add_collection3d(poly)
 
     # Match paper boxplot compact typography style.
-    fig_size = (3.45, 2.9)
-    if str(dataset_name) == "3d_vz_2d_ellipse_traj":
-        fig_size = (3.05, 2.55)
+    fig_size = (1.72, 1.44) if compact else (3.45, 2.9)
+    cfg_fig_size = getattr(cfg, "paper_plot_figsize", None)
+    if cfg_fig_size is not None:
+        try:
+            fig_size = (float(cfg_fig_size[0]), float(cfg_fig_size[1]))
+        except Exception:
+            fig_size = (1.72, 1.44) if compact else fig_size
+    elif str(dataset_name) == "3d_vz_2d_ellipse_traj":
+        fig_size = (1.55, 1.30) if compact else (3.05, 2.55)
 
     with plt.rc_context(
         {
-            "font.size": 8,
-            "axes.labelsize": 8,
-            "xtick.labelsize": 7,
-            "ytick.labelsize": 7,
-            "legend.fontsize": 7,
+            "font.size": axis_fontsize,
+            "axes.labelsize": axis_fontsize,
+            "xtick.labelsize": tick_fontsize,
+            "ytick.labelsize": tick_fontsize,
+            "legend.fontsize": legend_fontsize,
         }
     ):
         fig = plt.figure(figsize=fig_size)
         ax = fig.add_subplot(111, projection="3d")
-        h1_label = r"$h_{\theta}^{(1)} = 0$"
-        h2_label = r"$h_{\theta}^{(2)} = 0$"
-        int_label = "Learned equality constraint"
-        gt_label = "True constraint"
+        h1_label = r"$h_{\theta}^{(1)}=0$" if compact else r"$h_{\theta}^{(1)} = 0$"
+        h2_label = r"$h_{\theta}^{(2)}=0$" if compact else r"$h_{\theta}^{(2)} = 0$"
+        int_label = "Learned" if compact else "Learned constraint"
+        gt_label = "True" if compact else "True equality constraint"
 
         if rendered and verts1 is not None and faces1 is not None and verts2 is not None and faces2 is not None:
-            _add_surface(ax, verts1, faces1, "#22d3ee", 0.12, h1_label)
-            _add_surface(ax, verts2, faces2, "#f472b6", 0.12, h2_label)
+            surface_alpha = 0.18 if focus_twist_ellipse else 0.12
+            _add_surface(ax, verts1, faces1, "#22d3ee", surface_alpha, h1_label)
+            _add_surface(ax, verts2, faces2, "#f472b6", surface_alpha, h2_label)
         else:
             if len(p1) > 0:
                 ax.scatter(p1[:, 0], p1[:, 1], p1[:, 2], s=0.9, c="#22d3ee", alpha=0.20, label=h1_label)
             if len(p2) > 0:
                 ax.scatter(p2[:, 0], p2[:, 1], p2[:, 2], s=0.9, c="#f472b6", alpha=0.20, label=h2_label)
 
-        if gt_plot is not None and len(gt_plot) > 1:
-            gt_line = _order_curve_points(gt_plot)
-            ax.plot(
-                gt_line[:, 0],
-                gt_line[:, 1],
-                gt_line[:, 2],
-                color="#374151",
-                linewidth=3.2,
-                alpha=0.92,
-                label=gt_label,
-            )
+        if gt_components:
+            first_gt = True
+            gt_colors = ["#2563eb", "#111827"] if is_linked_curves else ["#374151"]
+            for comp_idx, comp in enumerate(gt_components):
+                if len(comp) <= 1:
+                    continue
+                gt_color = gt_colors[comp_idx % len(gt_colors)]
+                gt_comp_label = gt_label
+                if is_linked_curves and len(gt_components) > 1:
+                    gt_comp_label = f"True constraint branch {comp_idx + 1}"
+                _draw_curve_segments(
+                    ax,
+                    comp,
+                    color=gt_color,
+                    linewidth=true_lw,
+                    alpha=0.92,
+                    label=gt_comp_label if (first_gt or is_linked_curves) else None,
+                    preserve_order=True,
+                )
+                first_gt = False
 
-        if len(p12) > 0:
-            p12_line = _order_curve_points(p12)
-            ax.plot(
-                p12_line[:, 0],
-                p12_line[:, 1],
-                p12_line[:, 2],
-                color="#ef4444",
-                linewidth=0.85,
-                linestyle=(0, (2.4, 1.4)),
-                alpha=0.98,
-                label=int_label,
-            )
+        if learned_plot_components:
+            learned_scatter_only = bool(getattr(cfg, "plot_learned_curve_scatter_only", False))
+            first_learned = True
+            for comp in learned_plot_components:
+                if len(comp) <= 1:
+                    continue
+                _draw_curve_segments(
+                    ax,
+                    comp,
+                    color="#ef4444",
+                    linewidth=learned_lw,
+                    alpha=0.98,
+                    linestyle=(0, (2.4, 1.4)),
+                    label=int_label if first_learned else None,
+                    preserve_order=True,
+                    scatter_only=learned_scatter_only,
+                )
+                first_learned = False
+        elif len(p12) > 0:
+            learned_components = _assign_points_to_gt_components(p12, gt_components)
+            first_learned = True
+            for comp in learned_components:
+                if len(comp) <= 1:
+                    continue
+                _draw_curve_segments(
+                    ax,
+                    comp,
+                    color="#ef4444",
+                    linewidth=learned_lw,
+                    alpha=0.98,
+                    linestyle=(0, (2.4, 1.4)),
+                    label=int_label if first_learned else None,
+                )
+                first_learned = False
 
         _draw_common(ax)
 
         # No title for paper style.
-        ax.legend(loc="upper left", fontsize=7, frameon=False)
+        if show_legend:
+            if compact:
+                ax.legend(
+                    loc="upper center",
+                    bbox_to_anchor=(0.47, 1.02),
+                    ncol=2,
+                    fontsize=legend_fontsize,
+                    frameon=False,
+                    borderaxespad=0.0,
+                    columnspacing=0.75,
+                    handlelength=1.15,
+                    handletextpad=0.25,
+                )
+            else:
+                if focus_twist_ellipse:
+                    handles = [
+                        Patch(facecolor="#0891b2", edgecolor="#0891b2", alpha=0.48, label=h1_label),
+                        Patch(facecolor="#db2777", edgecolor="#db2777", alpha=0.48, label=h2_label),
+                        Line2D([0], [0], color="#4b5563", linewidth=true_lw, label=gt_label),
+                        Line2D(
+                            [0],
+                            [0],
+                            color="#ef4444",
+                            linewidth=learned_lw,
+                            linestyle=(0, (2.4, 1.4)),
+                            label=int_label,
+                        ),
+                    ]
+                    ax.legend(
+                        handles=handles,
+                        loc="upper left",
+                        fontsize=legend_fontsize,
+                        frameon=False,
+                    )
+                elif is_linked_curves:
+                    handles = [
+                        Patch(facecolor="#22d3ee", edgecolor="#22d3ee", alpha=0.24, label=h1_label),
+                        Patch(facecolor="#f472b6", edgecolor="#f472b6", alpha=0.24, label=h2_label),
+                        Line2D([0], [0], color="none", linewidth=0, label=""),
+                        Line2D([0], [0], color="#2563eb", linewidth=true_lw, label="True constraint branch 1"),
+                        Line2D([0], [0], color="#111827", linewidth=true_lw, label="True constraint branch 2"),
+                        Line2D(
+                            [0],
+                            [0],
+                            color="#ef4444",
+                            linewidth=learned_lw,
+                            linestyle=(0, (2.4, 1.4)),
+                            label=int_label,
+                        ),
+                    ]
+                    ax.legend(
+                        handles=handles,
+                        loc="upper left",
+                        ncol=2,
+                        fontsize=legend_fontsize,
+                        frameon=False,
+                        columnspacing=0.7,
+                        handlelength=1.4,
+                        handletextpad=0.35,
+                        borderaxespad=0.0,
+                    )
+                else:
+                    ax.legend(loc="upper left", fontsize=legend_fontsize, frameon=False)
 
         # Keep right margin so z-label is visible.
         fig.subplots_adjust(left=0.005, right=0.995, bottom=0.005, top=0.998)

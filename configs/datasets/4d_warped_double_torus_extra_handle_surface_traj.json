@@ -1,0 +1,16 @@
+{
+  "n_train": 2752,
+  "n_grid": 8192,
+  "traj_gene_n_grid": 16384,
+  "traj_grid_min": 16384,
+  "constraint_dim": 2,
+  "codim_auto_k_neighbors": 8,
+  "extra_handle_mesh_nx": 112,
+  "extra_handle_mesh_ny": 96,
+  "extra_handle_mesh_nz": 88,
+  "extra_handle_bridge_radius": 0.22,
+  "off_bank_size": 32,
+  "off_bank_oversample": 8,
+  "traj_count": 64,
+  "traj_knn": 32
+}

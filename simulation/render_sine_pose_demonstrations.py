@@ -22,8 +22,8 @@ from datasets.constraint_datasets import generate_dataset, sine_surface_z_and_no
 from simulation.ik_controller import IKConfig, UR5TrajectoryController, _FFmpegVideoWriter  # noqa: E402
 
 
-DATASET_NAME = "6d_workspace_sine_surface_pose_traj"
-DEFAULT_DATASET_CONFIG = "configs/datasets/6d_workspace_sine_surface_pose_traj.json"
+DATASET_NAME = "6d_surf_normal_traj"
+DEFAULT_DATASET_CONFIG = "configs/datasets/6d_surf_normal_traj.json"
 
 
 def _repo_root() -> str:
@@ -414,12 +414,12 @@ def _render_direct_joint_playback(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Fast PyBullet playback renderer for sine-pose demonstration trajectories."
+        description="Fast PyBullet playback renderer for SurfNormal demonstration trajectories."
     )
     parser.add_argument("--dataset-config", default=DEFAULT_DATASET_CONFIG, help="Dataset config JSON.")
     parser.add_argument(
         "--outdir",
-        default="outputs/bench/paper_mix_2d_3d6d_traj_vs_nontraj_7seed/oncl/sinpose_demonstrations",
+        default="outputs/bench/paper_mix_2d_3d6d_traj_vs_nontraj_7seed/oncl/surfnormal_demonstrations",
         help="Output directory.",
     )
     parser.add_argument("--seed", type=int, default=0, help="Dataset generation seed.")
@@ -508,7 +508,7 @@ def main() -> None:
 
     parser.add_argument("--gui", type=int, choices=[0, 1, 2], default=1, help="0: no video; 1: offscreen video; 2: GUI render only, no video logging.")
     parser.add_argument("--realtime", type=int, default=0, help="1 to sleep between sim steps.")
-    parser.add_argument("--video-name", default="sinepose_demonstrations.mp4", help="Merged MP4 filename.")
+    parser.add_argument("--video-name", default="surfnormal_demonstrations.mp4", help="Merged MP4 filename.")
     parser.add_argument("--video-slowdown", type=float, default=1.0, help="Saved video slowdown; below 1 speeds playback up.")
     parser.add_argument("--video-width", type=int, default=1024, help="Video frame width.")
     parser.add_argument("--video-height", type=int, default=768, help="Video frame height.")
@@ -710,10 +710,10 @@ def main() -> None:
             )
 
     merged_video_path = _concat_videos_ffmpeg(segment_video_paths, final_video_path) if final_video_path else None
-    arrays_path = os.path.join(outdir, "sinepose_demonstrations_arrays.npz")
+    arrays_path = os.path.join(outdir, "surfnormal_demonstrations_arrays.npz")
     np.savez_compressed(arrays_path, **arrays_to_save)
     summary = {
-        "task": "sinepose_demonstration_render",
+        "task": "surfnormal_demonstration_render",
         "dataset": DATASET_NAME,
         "dataset_config": os.path.abspath(_resolve_path(str(args.dataset_config))),
         "seed": int(args.seed),
@@ -741,7 +741,7 @@ def main() -> None:
         "arrays": arrays_path,
         "demos": summaries,
     }
-    summary_path = os.path.join(outdir, "sinepose_demonstrations_summary.json")
+    summary_path = os.path.join(outdir, "surfnormal_demonstrations_summary.json")
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 

@@ -20,7 +20,7 @@ _REPO_ROOT = os.path.abspath(os.path.join(_THIS_DIR, ".."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from planning.plan_sine_pose import (
+from planning.plan_surf_normal import (
     DEFAULT_CKPT,
     PairCase,
     _build_data_pool,
@@ -938,7 +938,7 @@ def main() -> None:
         surface_cfg=surface_cfg,
         orientation_arrow_length=0.045,
     )
-    dist_plot = os.path.join(outdir, "6d_workspace_sine_surface_pose_traj_oncl_tracking_error_distribution_paper.png")
+    dist_plot = os.path.join(outdir, "6d_surf_normal_traj_oncl_tracking_error_distribution_paper.png")
     _plot_error_distribution_paper(
         pos_err=planned_surface_pos_err_all.astype(np.float32),
         ang_err_deg=planned_surface_ori_err_deg_all.astype(np.float32),

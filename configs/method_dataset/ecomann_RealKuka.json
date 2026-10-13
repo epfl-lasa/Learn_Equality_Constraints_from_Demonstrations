@@ -1,0 +1,7 @@
+{
+  "hidden_sizes": [64, 64],
+  "epochs": 20,
+  "n_normal_space_traversal": 3,
+  "n_local_neighborhood_mult": 1.25,
+  "lr": 0.002
+}

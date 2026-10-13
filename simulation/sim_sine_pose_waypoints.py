@@ -18,7 +18,7 @@ _REPO_ROOT = os.path.abspath(os.path.join(_THIS_DIR, ".."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from planning.plan_sine_pose import (  # noqa: E402
+from planning.plan_surf_normal import (  # noqa: E402
     DEFAULT_CKPT,
     _choose_device,
     _error_to_true_constraint,
@@ -28,7 +28,7 @@ from planning.plan_sine_pose import (  # noqa: E402
     _resolve_path,
     _save_pointwise_csv,
 )
-from planning.plan_sine_pose_waypoints import (  # noqa: E402
+from planning.plan_surf_normal_waypoints import (  # noqa: E402
     DATASET_NAME,
     _generate_highfreq_waypoints,
     _plan_waypoint_chain,

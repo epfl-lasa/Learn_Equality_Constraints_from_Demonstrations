@@ -1,0 +1,12 @@
+{
+  "n_train": 3072,
+  "n_grid": 8192,
+  "traj_gene_n_grid": 8192,
+  "constraint_dim": 1,
+  "extra_handle_mesh_nx": 112,
+  "extra_handle_mesh_ny": 96,
+  "extra_handle_mesh_nz": 88,
+  "extra_handle_bridge_radius": 0.22,
+  "off_bank_size": 24,
+  "off_bank_oversample": 8
+}

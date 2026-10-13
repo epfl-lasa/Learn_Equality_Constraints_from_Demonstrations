@@ -13,7 +13,13 @@ def _wrap_pi(x: np.ndarray) -> np.ndarray:
 
 def mixed_unit_angle_dims(dataset_name: str | None, dim: int) -> tuple[int, ...]:
     name = str(dataset_name or "")
-    if name in {"6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj"} and dim >= 6:
+    if name in {
+        "6d_workspace_sine_surface_pose",
+        "6d_workspace_sine_surface_pose_traj",
+        "6d_workspace_sine_surface_pose_traj_turn",
+        "6d_surf_normal",
+        "6d_surf_normal_traj",
+    } and dim >= 6:
         return (3, 4, 5)
     if name in {"12d_dual_arm", "12d_dual_arm_traj"} and dim >= 12:
         return (3, 4, 5, 9, 10, 11)

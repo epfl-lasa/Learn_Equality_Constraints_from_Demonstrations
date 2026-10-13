@@ -1,0 +1,12 @@
+{
+  "n_train": 3072,
+  "n_grid": 8192,
+  "traj_gene_n_grid": 8192,
+  "constraint_dim": 1,
+  "genus3_mesh_nx": 112,
+  "genus3_mesh_ny": 88,
+  "genus3_mesh_nz": 88,
+  "genus3_tube_radius": 0.165,
+  "off_bank_size": 24,
+  "off_bank_oversample": 8
+}

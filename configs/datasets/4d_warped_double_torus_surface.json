@@ -1,0 +1,9 @@
+{
+  "n_train": 3072,
+  "n_grid": 8192,
+  "traj_gene_n_grid": 8192,
+  "constraint_dim": 2,
+  "codim_auto_k_neighbors": 8,
+  "off_bank_size": 32,
+  "off_bank_oversample": 8
+}

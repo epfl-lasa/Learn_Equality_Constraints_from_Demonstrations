@@ -1,0 +1,9 @@
+{
+  "n_train": 512,
+  "traj_gene_n_grid": 4096,
+  "constraint_dim": 2,
+  "codim_auto_k_neighbors": 5,
+  "nested_ellipse_gap_scale": 1.0,
+  "off_bank_size": 32,
+  "off_bank_oversample": 8
+}

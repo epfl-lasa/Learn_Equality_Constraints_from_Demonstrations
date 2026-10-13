@@ -1,0 +1,6 @@
+{
+  "epochs": 1600,
+  "lam_oncl": 0.12,
+  "train_sample_pad_ratio": 0.7,
+  "eval_pad_ratio": 0.7
+}

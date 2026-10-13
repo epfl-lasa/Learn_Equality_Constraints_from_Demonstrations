@@ -78,6 +78,36 @@ ARM_UP_6D_DATASETS = {
 }
 
 
+def _seed_token(seed: Any) -> str:
+    text = str(seed).strip()
+    if not text:
+        text = "none"
+    return "".join(ch if (ch.isalnum() or ch in ("-", "_")) else "_" for ch in text)
+
+
+def _dataset_artifact_dir(out_root: str, method: str, dataset: str) -> str:
+    outdir = os.path.join(str(out_root), str(method), str(dataset))
+    os.makedirs(outdir, exist_ok=True)
+    return outdir
+
+
+def _seeded_eval_model_paths(
+    *,
+    out_root: str,
+    method: str,
+    dataset: str,
+    file_tag: str,
+    seed: Any,
+) -> tuple[str, str]:
+    outdir = _dataset_artifact_dir(out_root, method, dataset)
+    seed_part = _seed_token(seed)
+    stem = f"{dataset}_{file_tag}_seed{seed_part}"
+    return (
+        os.path.join(outdir, f"{stem}_eval.json"),
+        os.path.join(outdir, f"{stem}_model.pt"),
+    )
+
+
 def _ur5_use_pybullet_n6(dataset: str) -> bool:
     n = str(dataset)
     return n.startswith("6d_spatial_arm_up_n6") and ("_py" not in n)
@@ -1008,7 +1038,10 @@ def run_oncl_one(
                 axis_labels=(labels3[0], labels3[1], labels3[2]),
             )
 
-    if str(dataset) in ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj"):
+    if str(dataset) in (
+        "6d_surf_normal",
+        "6d_surf_normal_traj",
+    ):
         out_pose = os.path.join(outdir, f"{dataset}_{method_tag}_workspace_pose_orientation.png")
         _plot_workspace_pose_orientation_3d(
             x_train=x_train,
@@ -1067,8 +1100,13 @@ def run_oncl_one(
             use_pybullet_n6=_ur5_use_pybullet_n6(str(dataset)),
         )
 
-    eval_path = os.path.join(outdir, f"{dataset}_{method_tag}_eval.json")
-    ckpt_path = os.path.join(outdir, f"{dataset}_{method_tag}_model.pt")
+    eval_path, ckpt_path = _seeded_eval_model_paths(
+        out_root=out_root,
+        method=str(method_name),
+        dataset=str(dataset),
+        file_tag=str(method_tag),
+        seed=int(cfg.seed),
+    )
     cfg_serial = _cfg_to_serializable_dict(cfg, cfg_mapping)
     with open(eval_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2, ensure_ascii=False)
@@ -1239,7 +1277,10 @@ def run_udf_one(
             title=f"{dataset} ({method}): eval projected points in workspace + tool orientation",
             use_pybullet_n6=_ur5_use_pybullet_n6(str(dataset)),
         )
-    if dataset in ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj"):
+    if dataset in (
+        "6d_surf_normal",
+        "6d_surf_normal_traj",
+    ):
         out_pose = os.path.join(outdir, f"{dataset}_{method}_workspace_pose_orientation.png")
         _plot_workspace_pose_orientation_3d(
             x_train=x_train,
@@ -1281,8 +1322,13 @@ def run_udf_one(
             z_half_range=float(getattr(cfg, "dual_arm_vertical_half_range", getattr(cfg, "dual_arm_curve_z_amp", 0.35))),
         )
 
-    eval_path = os.path.join(outdir, f"{dataset}_{method}_eval.json")
-    ckpt_path = os.path.join(outdir, f"{dataset}_{method}_model.pt")
+    eval_path, ckpt_path = _seeded_eval_model_paths(
+        out_root=out_root,
+        method=str(method),
+        dataset=str(dataset),
+        file_tag=str(method),
+        seed=int(cfg.seed),
+    )
 
     with open(eval_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2, ensure_ascii=False)
@@ -1489,7 +1535,10 @@ def run_ecomann_one(
             title=f"{dataset} (ecomann): eval projected points in workspace + tool orientation",
             use_pybullet_n6=_ur5_use_pybullet_n6(str(dataset)),
         )
-    if dataset in ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj"):
+    if dataset in (
+        "6d_surf_normal",
+        "6d_surf_normal_traj",
+    ):
         out_pose = os.path.join(outdir, f"{dataset}_ecomann_workspace_pose_orientation.png")
         _plot_workspace_pose_orientation_3d(
             x_train=x_train,
@@ -1531,8 +1580,13 @@ def run_ecomann_one(
             z_half_range=float(getattr(cfg, "dual_arm_vertical_half_range", getattr(cfg, "dual_arm_curve_z_amp", 0.35))),
         )
 
-    eval_path = os.path.join(outdir, f"{dataset}_ecomann_eval.json")
-    ckpt_path = os.path.join(outdir, f"{dataset}_ecomann_model.pt")
+    eval_path, ckpt_path = _seeded_eval_model_paths(
+        out_root=out_root,
+        method="ecomann",
+        dataset=str(dataset),
+        file_tag="ecomann",
+        seed=int(cfg.seed),
+    )
     cfg_serial = _cfg_to_serializable_dict(cfg, cfg_mapping)
     with open(eval_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2, ensure_ascii=False)
@@ -2028,7 +2082,10 @@ def run_vae_one(
             title=f"{dataset} (vae): generated (z~N(0,1)) in workspace + tool orientation",
             use_pybullet_n6=_ur5_use_pybullet_n6(str(dataset)),
         )
-    if dataset in ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj"):
+    if dataset in (
+        "6d_surf_normal",
+        "6d_surf_normal_traj",
+    ):
         out_pose = os.path.join(outdir, f"{dataset}_vae_workspace_pose_orientation.png")
         _plot_workspace_pose_orientation_3d(
             x_train=x_train,
@@ -2070,8 +2127,13 @@ def run_vae_one(
             z_half_range=float(getattr(cfg, "dual_arm_vertical_half_range", getattr(cfg, "dual_arm_curve_z_amp", 0.35))),
         )
 
-    eval_path = os.path.join(outdir, f"{dataset}_vae_eval.json")
-    ckpt_path = os.path.join(outdir, f"{dataset}_vae_model.pt")
+    eval_path, ckpt_path = _seeded_eval_model_paths(
+        out_root=out_root,
+        method="vae",
+        dataset=str(dataset),
+        file_tag="vae",
+        seed=int(cfg.seed),
+    )
     cfg_serial = _cfg_to_serializable_dict(cfg, cfg_mapping)
 
     with open(eval_path, "w", encoding="utf-8") as f:

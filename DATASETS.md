@@ -1,35 +1,49 @@
-# Datasets Overview
+# Publication datasets
 
-This file summarizes the dataset generators and naming conventions used in this project.
+The current benchmark list is defined in `configs/paper_benchmark.json`.
+The first-submission dataset list is available in Git history.
 
-Main entry:
-- `datasets/constraint_datasets.py`
-- function: `generate_dataset(name, cfg)`
+| Dataset ID | Dimension | Purpose |
+|---|---:|---|
+| `2d_planar_arm_line_n2` | 2 | Planar arm line constraint |
+| `3d_planar_arm_line_n3_traj` | 3 | Planar arm demonstrations |
+| `3d_spatial_arm_ellip_n3_traj` | 3 | Spatial arm ellipse |
+| `3d_twosphere_traj` | 3 | Two-sphere surface |
+| `3d_vz_2d_ellipse_traj` | 3 | Twisted ellipse |
+| `linked_curves_3d` | 3 | Linked curves |
+| `multi_handle_4d` | 4 | Multi-handle manifold |
+| `6d_spatial_arm_up_n6_py_traj` | 6 | Upward-facing robot end effector |
+| `6d_surf_normal_traj` | 6 | Surface position and normal alignment |
+| `12d_dual_arm_traj` | 12 | Dual-arm virtual-link constraint |
+| `RealKuka` | 6 | Recorded position and tool-z direction |
 
-## Naming Notes
+## Recorded data and provenance
 
-- Repository dataset names such as `3d_torus_surface_traj` are internal ids used by configs and code.
-- The paper uses cleaner environment names such as `3DTorus`.
-- When both a base version and a `_traj` version exist, the `_traj` version is the default environment variant used in the paper experiments.
-- Non-`_traj` versions use scatter samples of the true constraint; `_traj` versions use trajectory demonstrations on the same underlying constraint.
+The only real-robot training dataset in this publication checkout is `RealKuka`.
+Its processed human demonstrations, task metadata and calibration models are
+retained. Oracle demonstrations, independent curved-surface training datasets,
+early plane tasks, raw ROS bags and generated figures are excluded.
+The development checkout retains the additional curved-surface datasets and the
+Oracle full/3 mm datasets; the latest publication-only cleanup does not modify it.
+Calibration checkpoints and metadata are needed for normalization and evaluation.
+Historical acquisition paths in JSON metadata are provenance only; runtime loading
+uses repository-relative paths through `datasets/real_iiwa/registry.py`.
 
-## Benchmark Datasets Used in the Paper
+The `RealKuka` default is `human_demo_paper_toolz_arc3mm_cropped_v001.npz`,
+with 1,283 points. It was subsampled at 3 mm arc length and cropped to remove
+entry/exit segments. Raw inputs not present in this snapshot must be provided
+explicitly to the optional preprocessing scripts; processed-data training is
+self-contained.
 
-These are the main environments used in the paper benchmark.
+Synthetic caches are regenerated locally and ignored by Git. No previous
+training outputs or videos are needed to train these tasks.
 
-| Paper Env Name    | Dataset ID                            | Data Dim | Codim | Traj | Description                                                                                                                                                              |
-| ----------------- | ------------------------------------- | -------: | ----: | ---: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `2DEllipse`       | `2d_ellipse`                          | 2        | 1     | no   | 2D ellipse curve with gaps in training coverage used to test interpolation across missing segments.                                                                      |
-| `2DPlanarArmLine` | `2d_planar_arm_line_n2`               | 2        | 1     | no   | 2-DoF planar arm whose end-effector is constrained to a workspace line; learning is performed in joint space.                                                            |
-| `2DSineSparse`    | `2d_sparse_sine`                      | 2        | 1     | no   | Sparse samples from a planar sinusoidal curve.                                                                                                                           |
-| `3DTwistEllipse`  | `3d_vz_2d_ellipse_traj`               | 3        | 2     | yes  | Twisted 3D lifting of a 2D ellipse, used in trajectory-demonstration form in the paper.                                                                                  |
-| `3DPlanarArmLine` | `3d_planar_arm_line_n3_traj`          | 3        | 1     | yes  | 3-DoF planar arm whose end-effector is constrained to a workspace line; paper uses the trajectory variant.                                                               |
-| `3DArmEllipse`    | `3d_spatial_arm_ellip_n3_traj`        | 3        | 2     | yes  | 3-DoF spatial arm whose end-effector follows an elliptical task-space curve; paper uses the trajectory variant.                                                          |
-| `3DTorus`         | `3d_torus_surface_traj`               | 3        | 1     | yes  | Torus surface in 3D, used in trajectory-demonstration form in the paper.                                                                                                 |
-| `3DTwoSphere`     | `3d_twosphere_traj`                   | 3        | 1     | yes  | Outer boundary of a two-sphere union, used in trajectory-demonstration form in the paper.                                                                                |
-| `6DSinePose`      | `6d_workspace_sine_surface_pose_traj` | 6        | 3     | yes  | 6D workspace pose constraint: position lies on a sine surface, local tool axis aligns with the surface normal, and spin about the normal is free.                        |
-| `6DArmUp`         | `6d_spatial_arm_up_n6_py_traj`        | 6        | 2     | yes  | 6-DoF UR5-style arm with an upward-facing end-effector orientation constraint and unconstrained position; paper uses the trajectory variant.                             |
-| `12DDualArm`      | `12d_dual_arm_traj`                   | 12       | 10    | yes  | Dual-arm virtual-link pose constraint: two end-effectors keep fixed span while the object center moves on a vertical ribbon and the link axis follows the guide tangent. |
+## Additional geometry
+
+Double-torus, genus-3, faceted-sphere, spiky-sphere, spline/knot, and warped-4D
+variants are retained with their current configurations. The `geometry` runner
+group is a representative subset, not a claim that all exploratory datasets
+appear in the final paper.
 
 ## Additional Datasets Provided by the Project
 
@@ -68,6 +82,13 @@ The repository also includes several additional datasets that are not part of th
 | `3d_sphere_surface`              | 3        | 1     | base version                   | Sphere surface                                                                    |
 | `3d_sphere_surface_traj`         | 3        | 1     | traj version                   | Sphere surface with trajectory-style sampling                                     |
 | `3d_spiral`                      | 3        | 2     | no traj variant                | 3D helix/spiral curve manifold                                                    |
+| `3d_knot_spline_union`           | 3        | 2     | built-in trajectory gaps       | Union of a trefoil-knot curve and waypoint-spline closed curve, with training demonstrations leaving small gap segments |
+| `3d_double_torus_surface`        | 3        | 1     | base version                   | Connected genus-2 double-torus surface, defined as the outer boundary of two obliquely fused solid tori |
+| `3d_double_torus_surface_traj`   | 3        | 1     | traj version                   | Connected genus-2 oblique double-torus surface with trajectory-style sampling     |
+| `3d_faceted_sphere_surface`      | 3        | 1     | base version                   | Closed bumpy sphere-like surface generated from irregular 3D control points, with faceted ridges and dents |
+| `3d_faceted_sphere_surface_traj` | 3        | 1     | traj version                   | Trajectory-demonstration variant of the faceted control-point sphere surface       |
+| `3d_spiky_sphere_surface`        | 3        | 1     | base version                   | Hedgehog-like closed surface with many sharp radial spikes and deep dents for stress testing limitations |
+| `3d_spiky_sphere_surface_traj`   | 3        | 1     | traj version                   | Trajectory-demonstration variant of the spiky surface stress test                  |
 | `3d_torus_surface`               | 3        | 1     | base version                   | Torus surface without trajectory grouping                                         |
 | `3d_twosphere`                   | 3        | 1     | base version                   | Two-sphere manifold without trajectory grouping                                   |
 | `3d_vz_2d_discontinuous`         | 3        | 2     | derived lift, non-traj         | Lifted 2D discontinuous dataset with varying `z(x,y)`                             |
@@ -83,7 +104,7 @@ The repository also includes several additional datasets that are not part of th
 | `3d_vz_2d_square`                | 3        | 2     | derived lift, non-traj         | Lifted 2D square dataset with varying `z(x,y)`                                    |
 | `6d_spatial_arm_up_n6`           | 6        | 2     | base version, pybullet backend | 6-DoF UR5-style arm upward-orientation set using the pybullet backend             |
 | `6d_spatial_arm_up_n6_py`        | 6        | 2     | base version, analytic backend | 6-DoF UR5-style arm upward-orientation set using the analytic backend             |
-| `6d_workspace_sine_surface_pose` | 6        | 3     | base version                   | Scatter-sample version of the sine-surface pose manifold                          |
+| `6d_surf_normal` | 6        | 3     | base version                   | Scatter-sample version of the sine-surface pose manifold                          |
 | `12d_dual_arm`                   | 12       | 10    | base version                   | Scatter-sample version of the dual-arm vertical-ribbon virtual-link pose manifold |
 
 ## Derived Naming Rules

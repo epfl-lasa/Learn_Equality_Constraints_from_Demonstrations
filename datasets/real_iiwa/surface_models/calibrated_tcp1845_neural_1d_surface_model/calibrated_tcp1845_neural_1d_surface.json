@@ -1,0 +1,19 @@
+{
+  "name": "calibrated_tcp1845_neural_1d_surface_20260719",
+  "type": "grid_height_field",
+  "frame": "world",
+  "grid_file": "calibrated_tcp1845_neural_1d_surface_grid.npz",
+  "xy_bounds": {"min": [0.360000, -0.054000], "max": [0.800000, 0.380000]},
+  "data_support_polygon": [[0.369789, 0.003132], [0.420298, -0.016202], [0.640693, -0.022574], [0.741632, -0.021905], [0.762404, -0.012962], [0.769906, -0.000464], [0.771526, 0.009895], [0.777227, 0.049091], [0.777697, 0.059987], [0.787787, 0.320639], [0.786700, 0.330971], [0.783211, 0.340358], [0.778786, 0.347381], [0.736489, 0.365850], [0.730465, 0.366453], [0.722615, 0.366675], [0.500132, 0.371100], [0.379980, 0.368934], [0.372306, 0.362150], [0.372079, 0.350154]],
+  "source_bag": "2026-07-18-17-21-43.bag",
+  "tcp_offset_link7_m": [0.0, 0.0, 0.1845],
+  "tcp_offset_ee_m": [0.0, 0.0, 0.1395],
+  "reconstruction": "Original TF samples recomputed along measured tool +Z from 111 mm to 184.5 mm before fitting.",
+  "fit_model": "z = MLP(u) + a*v + b",
+  "changing_axis_xy": [0.99939084, -0.03489950],
+  "invariant_axis_xy": [-0.03489950, -0.99939084],
+  "cross_axis_slope_m_per_m": -0.00080136,
+  "fit_validation_mae_mm": 0.8493,
+  "fit_validation_rmse_mm": 1.1584,
+  "orientation_constraint": "configurable by GUI"
+}

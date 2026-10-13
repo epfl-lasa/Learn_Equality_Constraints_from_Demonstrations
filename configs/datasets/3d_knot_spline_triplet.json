@@ -1,0 +1,10 @@
+{
+  "n_train": 768,
+  "traj_gene_n_grid": 6144,
+  "constraint_dim": 2,
+  "codim_auto_k_neighbors": 5,
+  "knot_spline_gap_scale": 1.0,
+  "triplet_simple_variant": "right_xz_small",
+  "off_bank_size": 32,
+  "off_bank_oversample": 8
+}

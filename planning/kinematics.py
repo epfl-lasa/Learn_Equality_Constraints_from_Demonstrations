@@ -12,8 +12,8 @@ def is_arm_dataset(name: str) -> bool:
 
 def is_workspace_pose_dataset(name: str) -> bool:
     return str(name) in (
-        "6d_workspace_sine_surface_pose",
-        "6d_workspace_sine_surface_pose_traj",
+        "6d_surf_normal",
+        "6d_surf_normal_traj",
         "12d_dual_arm",
         "12d_dual_arm_traj",
     )

@@ -53,4 +53,6 @@ def run_eval_metrics(
         x0_override=eval_artifacts["x_eval"],
         learned_samples_override=eval_artifacts["proj"],
     )
-    return {**metrics_proj, **metrics_chamfer}, eval_cfg, eval_artifacts
+    out = {**metrics_proj, **metrics_chamfer}
+    out["dist_space"] = metrics_proj.get("dist_space", out.get("dist_space", ""))
+    return out, eval_cfg, eval_artifacts

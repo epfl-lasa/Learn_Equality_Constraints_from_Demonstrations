@@ -99,11 +99,20 @@ def apply_overrides(cfg: dict[str, Any], overrides: list[str]) -> dict[str, Any]
 
 def load_layered_config(config_root: str, method: str, dataset: str) -> tuple[dict[str, Any], list[str]]:
     root = os.path.abspath(config_root)
+    dataset_for_config = str(dataset)
+    try:
+        from datasets.real_iiwa.registry import canonical_real_iiwa_dataset_name
+
+        canonical = canonical_real_iiwa_dataset_name(str(dataset))
+        if canonical is not None:
+            dataset_for_config = str(canonical)
+    except Exception:
+        dataset_for_config = str(dataset)
     layers = [
         _resolve_first_existing(os.path.join(root, "base")),
         _resolve_first_existing(os.path.join(root, "methods", method)),
-        _resolve_first_existing(os.path.join(root, "datasets", dataset)),
-        _resolve_first_existing(os.path.join(root, "method_dataset", f"{method}_{dataset}")),
+        _resolve_first_existing(os.path.join(root, "datasets", dataset_for_config)),
+        _resolve_first_existing(os.path.join(root, "method_dataset", f"{method}_{dataset_for_config}")),
     ]
     loaded_paths: list[str] = []
     merged: dict[str, Any] = {}

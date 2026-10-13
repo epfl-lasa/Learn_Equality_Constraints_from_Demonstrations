@@ -1,5 +1,5 @@
 {
-  "epochs": 100,
-  "lam_oncl": 0.2,
+  "epochs": 2000,
+  "lam_oncl": 0.02,
   "lr": 0.002
 }

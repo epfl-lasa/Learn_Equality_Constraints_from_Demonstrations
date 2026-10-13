@@ -1,0 +1,13 @@
+{
+  "constraint_dim": 4,
+  "hidden": 64,
+  "depth": 2,
+  "epochs": 400,
+  "lr": 0.002,
+  "projector": {
+    "steps": 120,
+    "min_steps": 30
+  },
+  "codim_auto_k_neighbors": 16,
+  "lam_oncl": 0.015
+}

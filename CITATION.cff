@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the associated RA-L paper."
+title: "ONCL: Learning Equality Constraints from Trajectory Demonstrations"
+type: software
+authors:
+  - family-names: Peng
+    given-names: Baiyu
+  - family-names: Árboles
+    given-names: Albert
+  - family-names: Billard
+    given-names: Aude
+repository-code: "https://github.com/epfl-lasa/Learn_Equality_Constraints_from_Demonstrations"
+preferred-citation:
+  type: article
+  title: "Learning Equality Constraints from Trajectory Demonstrations"
+  authors:
+    - family-names: Peng
+      given-names: Baiyu
+    - family-names: Árboles
+      given-names: Albert
+    - family-names: Billard
+      given-names: Aude
+  journal: "IEEE Robotics and Automation Letters"
+  year: 2026

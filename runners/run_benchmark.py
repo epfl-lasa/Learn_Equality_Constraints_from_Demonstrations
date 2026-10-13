@@ -198,7 +198,7 @@ def _with_default_non_gif_overrides(overrides: list[str]) -> list[str]:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run benchmark suite over methods and datasets")
     p.add_argument("--methods", default="oncl", help="comma-separated methods")
-    p.add_argument("--datasets", default="6d_workspace_sine_surface_pose", help="comma-separated datasets")
+    p.add_argument("--datasets", default="6d_surf_normal", help="comma-separated datasets")
     p.add_argument("--seeds", default="10", help="comma-separated seeds; empty means no seed override")
     p.add_argument("--outdir", default="outputs")
     p.add_argument("-clearn_dir", "--clearn_dir", action="store_true", help="if outdir is non-empty, ask once for confirmation (type 1) then clear it")

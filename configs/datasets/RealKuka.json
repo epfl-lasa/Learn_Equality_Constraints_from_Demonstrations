@@ -1,0 +1,11 @@
+{
+  "n_train": 1283,
+  "traj_gene_n_grid": 4096,
+  "n_grid": 4096,
+  "real_iiwa_x_key": "x",
+  "real_iiwa_surface_grid_pad_ratio": 0.05,
+  "eval_gt_n_grid": 4096,
+  "eval_pad_ratio": 0.25,
+  "eval_min_axis_span_ratio": 0.05,
+  "zero_eps_quantile": 90.0
+}

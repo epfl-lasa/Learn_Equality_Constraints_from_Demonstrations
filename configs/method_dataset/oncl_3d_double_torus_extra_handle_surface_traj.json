@@ -1,0 +1,11 @@
+{
+  "lr": 0.0015,
+  "epochs": 3000,
+  "lam_oncl": 0.08,
+  "lam_oncl_ortho": 1.0,
+  "oncl_near_ratio": 0.8,
+  "oncl_near_std_ratio": 0.035,
+  "projector": {
+    "steps": 120
+  }
+}

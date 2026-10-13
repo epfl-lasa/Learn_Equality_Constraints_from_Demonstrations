@@ -1,0 +1,9 @@
+{
+  "lr": 0.002,
+  "epochs": 2000,
+  "lam_oncl": 0.2,
+  "lam_oncl_ortho": 1.0,
+  "projector": {
+    "steps": 80
+  }
+}

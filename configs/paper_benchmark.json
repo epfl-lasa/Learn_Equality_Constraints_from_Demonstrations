@@ -1,0 +1,21 @@
+{
+  "seed": 0,
+  "main_datasets": [
+    "2d_planar_arm_line_n2",
+    "3d_planar_arm_line_n3_traj",
+    "3d_spatial_arm_ellip_n3_traj",
+    "3d_twosphere_traj",
+    "3d_vz_2d_ellipse_traj",
+    "linked_curves_3d",
+    "multi_handle_4d",
+    "6d_spatial_arm_up_n6_py_traj",
+    "6d_surf_normal_traj",
+    "12d_dual_arm_traj"
+  ],
+  "real_datasets": ["RealKuka"],
+  "additional_geometry_examples": [
+    "3d_faceted_sphere_surface_traj",
+    "3d_genus3_tube_surface_traj",
+    "3d_spiky_sphere_surface_traj"
+  ]
+}

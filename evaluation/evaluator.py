@@ -14,6 +14,19 @@ from datasets.constraint_datasets import (
     lift_xy_to_3d_zero,
     sine_surface_z_and_normal_from_xy,
 )
+from datasets.real_iiwa.registry import (
+    REAL_IIWA_DATASETS,
+    canonical_real_iiwa_dataset_name,
+    plane_constraint,
+    real_iiwa_coordinate_space,
+    is_real_iiwa_dataset,
+    real_iiwa_neural_surface_z_normal,
+    real_iiwa_normalized_to_world_xyz,
+    real_iiwa_orientation_representation,
+    real_iiwa_surface_distance,
+    real_iiwa_surface_grid,
+    real_iiwa_surface_type,
+)
 
 DEFAULT_EVAL_CFG: dict[str, Any] = {
     "device": "cpu",
@@ -23,6 +36,7 @@ DEFAULT_EVAL_CFG: dict[str, Any] = {
     "eval_proj_n_points": 4096,
     "eval_gt_n_grid": 8128,
     "eval_chamfer_near_ratio": 0.75,
+    "eval_chamfer_near_source": "gt",
     "eval_chamfer_near_noise_std_ratio": 0.1,
     "eval_tau_ratio": 0.02,
 }
@@ -45,6 +59,7 @@ EVAL_DATASET_OVERRIDES: dict[str, dict[str, Any]] = {
     "2d_sine": {},
     "2d_sparse_sine": {},
     "2d_discontinuous": {},
+    "2d_two_horizontal_lines": {},
     "2d_looped_spiro": {},
     "2d_sharp_star": {},
     "2d_hetero_noise": {},
@@ -60,6 +75,7 @@ EVAL_DATASET_OVERRIDES: dict[str, dict[str, Any]] = {
     "6d_spatial_arm_up_n6_py": {},
     "6d_workspace_sine_surface_pose": {},
     "6d_workspace_sine_surface_pose_traj": {},
+    "6d_workspace_sine_surface_pose_traj_turn": {},
     "12d_dual_arm": {},
     "12d_dual_arm_traj": {},
 }
@@ -95,11 +111,22 @@ def resolve_gt_grid(
         float(getattr(cfg_ds, "z_amp2", 0.20)),
         float(getattr(cfg_ds, "z_freq1", 1.5)),
         float(getattr(cfg_ds, "z_freq2", 1.2)),
+        float(getattr(cfg_ds, "faceted_sphere_bump_scale", 0.72)),
+        float(getattr(cfg_ds, "faceted_sphere_sigma", 0.20)),
+        float(getattr(cfg_ds, "faceted_sphere_sharpness", 3.2)),
+        float(getattr(cfg_ds, "spiky_sphere_spike_scale", 0.86)),
+        float(getattr(cfg_ds, "spiky_sphere_sigma", 0.105)),
+        float(getattr(cfg_ds, "spiky_sphere_sharpness", 8.0)),
+        int(getattr(cfg_ds, "spiky_sphere_n_ctrl", 58)),
     )
     if cache_key in _GT_GRID_CACHE:
         return _GT_GRID_CACHE[cache_key]
 
     name = str(dataset_name)
+    if is_real_iiwa_dataset(name):
+        out = real_iiwa_surface_grid(name, cfg_ds, x_train=x_train).astype(np.float32)
+        _GT_GRID_CACHE[cache_key] = out
+        return out
     if name.startswith("3d_0z_"):
         base = name[len("3d_0z_"):]
         if base.endswith("_traj"):
@@ -151,7 +178,13 @@ def _wrap_pi_np(x: np.ndarray) -> np.ndarray:
 
 def _mixed_unit_pose_angle_dims(dataset_name: str | None, dim: int) -> tuple[int, ...]:
     name = str(dataset_name or "")
-    if name in ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj") and dim >= 6:
+    if name in (
+        "6d_workspace_sine_surface_pose",
+        "6d_workspace_sine_surface_pose_traj",
+        "6d_workspace_sine_surface_pose_traj_turn",
+        "6d_surf_normal",
+        "6d_surf_normal_traj",
+    ) and dim >= 6:
         return (3, 4, 5)
     if name in ("12d_dual_arm", "12d_dual_arm_traj") and dim >= 12:
         return (3, 4, 5, 9, 10, 11)
@@ -255,8 +288,23 @@ def sample_eval_seed_points(
     n_box = max(0, n_seed - n_near)
     out = []
     if n_near > 0:
-        idx = rng.integers(0, len(x_train), size=n_near)
-        x0_near = x_train[idx].astype(np.float32).copy()
+        near_source = x_train.astype(np.float32)
+        near_source_name = str(getattr(cfg, "eval_chamfer_near_source", "gt")).strip().lower()
+        if near_source_name in {"gt", "true", "true_manifold", "manifold"} and dataset_name:
+            try:
+                gt_grid = resolve_gt_grid(str(dataset_name), cfg, x_train=x_train).astype(np.float32)
+                if gt_grid.ndim == 2 and gt_grid.shape[1] == x_train.shape[1] and len(gt_grid) > 0:
+                    non_angle_dims = [i for i in range(gt_grid.shape[1]) if i not in set(angle_dims)]
+                    in_bounds = np.isfinite(gt_grid).all(axis=1)
+                    if non_angle_dims:
+                        lo = mins.reshape(1, -1)[:, non_angle_dims]
+                        hi = maxs.reshape(1, -1)[:, non_angle_dims]
+                        in_bounds &= np.all((gt_grid[:, non_angle_dims] >= lo) & (gt_grid[:, non_angle_dims] <= hi), axis=1)
+                    near_source = gt_grid[in_bounds] if np.any(in_bounds) else gt_grid
+            except Exception:
+                near_source = x_train.astype(np.float32)
+        idx = rng.integers(0, len(near_source), size=n_near)
+        x0_near = near_source[idx].astype(np.float32).copy()
         noise_std = float(max(cfg.eval_chamfer_near_noise_std_ratio, 1e-6))
         x0_near = x0_near + rng.normal(size=x0_near.shape).astype(np.float32) * (
             noise_std * span.reshape(1, -1)
@@ -632,6 +680,10 @@ def evaluate_bidirectional_chamfer(
         a = embed_fn(gt_samples)
         b = embed_fn(learned_samples)
         dist_space = "workspace"
+    elif dataset_name is not None and is_real_iiwa_dataset(str(dataset_name)) and real_iiwa_coordinate_space(str(dataset_name)) == "surface_model_normalized":
+        a = real_iiwa_normalized_to_world_xyz(str(dataset_name), gt_samples)
+        b = real_iiwa_normalized_to_world_xyz(str(dataset_name), learned_samples)
+        dist_space = "real_iiwa_world"
     else:
         a = gt_samples
         b = learned_samples
@@ -681,13 +733,21 @@ def evaluate_projection_metrics(
     on_mean_v = float(np.mean(0.5 * (h_on ** 2)))
 
     use_workspace_analytic = (
-        str(dataset_name) in ("6d_workspace_sine_surface_pose", "6d_workspace_sine_surface_pose_traj")
+        str(dataset_name)
+        in (
+            "6d_workspace_sine_surface_pose",
+            "6d_workspace_sine_surface_pose_traj",
+            "6d_workspace_sine_surface_pose_traj_turn",
+            "6d_surf_normal",
+            "6d_surf_normal_traj",
+        )
         and embed_fn is not None
     )
     use_dual_arm_workspace_analytic = (
         str(dataset_name) in ("12d_dual_arm", "12d_dual_arm_traj")
         and embed_fn is not None
     )
+    use_real_iiwa_analytic = dataset_name is not None and is_real_iiwa_dataset(str(dataset_name))
 
     if embed_fn is not None:
         grid_metric = embed_fn(grid)
@@ -714,8 +774,12 @@ def evaluate_projection_metrics(
     else:
         grid_metric = grid
         x_eval_metric = x_eval
-        _, d_true_eval = _true_projection(x_eval_metric, grid_metric)
-        dist_space = "data_space"
+        if use_real_iiwa_analytic:
+            d_true_eval = real_iiwa_surface_distance(str(dataset_name), x_eval_metric)
+            dist_space = "real_iiwa_analytic"
+        else:
+            _, d_true_eval = _true_projection(x_eval_metric, grid_metric)
+            dist_space = "data_space"
 
     proj, steps = project_fn(model, x_eval, eval_eps_used)
     proj = _clip_points_to_eval_bounds(
@@ -768,6 +832,8 @@ def evaluate_projection_metrics(
                 proj[proj_mask, :12].astype(np.float32),
                 cfg,
             )
+        elif use_real_iiwa_analytic:
+            proj_final_true_dist = real_iiwa_surface_distance(str(dataset_name), proj_metric_all[proj_mask])
         else:
             proj_final_true_dist = _nn_dist(proj_metric_all[proj_mask], grid_metric)
         with torch.no_grad():
@@ -817,6 +883,8 @@ def evaluate_projection_metrics(
         "eval_eps_used": float(eval_eps_used),
         "dist_space": dist_space,
     }
+    if use_real_iiwa_analytic and np.any(proj_mask):
+        metrics.update(_real_iiwa_projection_error_metrics(str(dataset_name), proj[proj_mask]))
     if not bool(return_artifacts):
         return metrics
     artifacts = {
@@ -826,3 +894,60 @@ def evaluate_projection_metrics(
         "eval_eps_used": float(eval_eps_used),
     }
     return metrics, artifacts
+
+
+def _summary_stats(prefix: str, values: np.ndarray) -> dict[str, float]:
+    arr = np.asarray(values, dtype=np.float64).reshape(-1)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return {
+            f"{prefix}_mean": float("nan"),
+            f"{prefix}_median": float("nan"),
+            f"{prefix}_p95": float("nan"),
+            f"{prefix}_max": float("nan"),
+        }
+    return {
+        f"{prefix}_mean": float(np.mean(arr)),
+        f"{prefix}_median": float(np.median(arr)),
+        f"{prefix}_p95": float(np.percentile(arr, 95)),
+        f"{prefix}_max": float(np.max(arr)),
+    }
+
+
+def _real_iiwa_projection_error_metrics(dataset_name: str, proj: np.ndarray) -> dict[str, float]:
+    pts = np.asarray(proj, dtype=np.float32)
+    if pts.ndim != 2 or pts.shape[1] < 3:
+        return {}
+    canonical = canonical_real_iiwa_dataset_name(dataset_name)
+    if canonical is None:
+        return {}
+    spec = REAL_IIWA_DATASETS[canonical]
+    if real_iiwa_coordinate_space(dataset_name) == "surface_model_normalized":
+        pts_world = real_iiwa_normalized_to_world_xyz(dataset_name, pts[:, :3])
+    else:
+        pts_world = pts[:, :3]
+
+    if real_iiwa_surface_type(dataset_name) == "neural_height_field":
+        z_pred, normal = real_iiwa_neural_surface_z_normal(dataset_name, pts_world[:, 0], pts_world[:, 1])
+        grad_norm = np.linalg.norm(normal[:, :2] / np.maximum(normal[:, 2:3], 1e-12), axis=1)
+        pos_m = np.abs(pts_world[:, 2] - z_pred) / np.sqrt(1.0 + grad_norm**2)
+    else:
+        normal_one, d = plane_constraint()
+        normal = np.tile(normal_one.reshape(1, 3), (len(pts_world), 1)).astype(np.float32)
+        pos_m = np.abs(pts_world[:, :3].astype(np.float64) @ normal_one + float(d))
+
+    out = _summary_stats("real_iiwa_proj_position_error_mm", np.asarray(pos_m, dtype=np.float64) * 1000.0)
+    out["real_iiwa_proj_position_error_m_mean"] = float(np.mean(pos_m)) if len(pos_m) else float("nan")
+
+    if pts.shape[1] >= 6 and real_iiwa_orientation_representation(dataset_name) == "tool_z":
+        tool_z = pts[:, 3:6].astype(np.float32)
+        tool_z = tool_z / np.maximum(np.linalg.norm(tool_z, axis=1, keepdims=True), 1e-12)
+        sign = float(spec.get("target_tool_axis_sign", -1.0))
+        target_tool_z = (sign * normal.astype(np.float32))
+        target_tool_z = target_tool_z / np.maximum(np.linalg.norm(target_tool_z, axis=1, keepdims=True), 1e-12)
+        dots = np.clip(np.sum(tool_z * target_tool_z, axis=1), -1.0, 1.0)
+        err_deg = np.degrees(np.arccos(dots))
+        out.update(_summary_stats("real_iiwa_proj_orientation_error_deg", err_deg))
+        axis_l2 = np.linalg.norm(tool_z - target_tool_z, axis=1)
+        out.update(_summary_stats("real_iiwa_proj_orientation_axis_l2", axis_l2))
+    return out

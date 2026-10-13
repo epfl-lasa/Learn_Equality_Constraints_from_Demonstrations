@@ -20,6 +20,7 @@
   "is_aligning_lpca_normal_space_eigvecs": true,
   "is_augmenting_w_rand_comb_of_normaleigvecs": true,
   "max_rand_comb_normal_dim": 3,
+  "aug_epsilon_mult_override": null,
   "clean_aug_data": true,
   "siam_mode": "all",
   "n_normal_space_traversal": 5,

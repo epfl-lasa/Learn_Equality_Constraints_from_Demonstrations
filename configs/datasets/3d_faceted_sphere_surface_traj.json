@@ -1,0 +1,16 @@
+{
+  "n_train": 4096,
+  "n_grid": 8192,
+  "traj_gene_n_grid": 16384,
+  "traj_grid_min": 16384,
+  "constraint_dim": 1,
+  "faceted_sphere_n_lat": 18,
+  "faceted_sphere_n_lon": 36,
+  "faceted_sphere_bump_scale": 0.72,
+  "faceted_sphere_sigma": 0.20,
+  "faceted_sphere_sharpness": 3.2,
+  "off_bank_size": 24,
+  "off_bank_oversample": 8,
+  "traj_count": 64,
+  "traj_knn": 32
+}

@@ -1,0 +1,7 @@
+{
+  "n_train": 512,
+  "traj_gene_n_grid": 4096,
+  "off_bank_size": 16,
+  "off_bank_oversample": 6,
+  "intersecting_loops_gap_scale": 1.0
+}

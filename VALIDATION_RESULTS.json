@@ -1,0 +1,832 @@
+{
+  "training": [
+    {
+      "dataset": "12d_dual_arm_traj",
+      "seed": 0,
+      "epochs": 4000,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.09428577870130539,
+      "paper_proj_manifold_dist": 0.09428577870130539,
+      "pass": true
+    },
+    {
+      "dataset": "2d_planar_arm_line_n2",
+      "seed": 0,
+      "epochs": 2000,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.2595158815383911,
+      "paper_proj_manifold_dist": 0.2595158815383911,
+      "pass": true
+    },
+    {
+      "dataset": "3d_faceted_sphere_surface_traj",
+      "seed": 0,
+      "epochs": 2600,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.019905641674995422,
+      "paper_proj_manifold_dist": 0.019905641674995422,
+      "pass": true
+    },
+    {
+      "dataset": "3d_genus3_tube_surface_traj",
+      "seed": 0,
+      "epochs": 3000,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.17367762327194214,
+      "paper_proj_manifold_dist": 0.17367762327194214,
+      "pass": true
+    },
+    {
+      "dataset": "3d_planar_arm_line_n3_traj",
+      "seed": 0,
+      "epochs": 2000,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.11556409299373627,
+      "paper_proj_manifold_dist": 0.11556409299373627,
+      "pass": true
+    },
+    {
+      "dataset": "3d_spatial_arm_ellip_n3_traj",
+      "seed": 0,
+      "epochs": 1200,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.02845998853445053,
+      "paper_proj_manifold_dist": 0.02845998853445053,
+      "pass": true
+    },
+    {
+      "dataset": "3d_spiky_sphere_surface_traj",
+      "seed": 0,
+      "epochs": 2600,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.22212836146354675,
+      "paper_proj_manifold_dist": 0.22212836146354675,
+      "pass": true
+    },
+    {
+      "dataset": "3d_twosphere_traj",
+      "seed": 0,
+      "epochs": 2000,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.02774651348590851,
+      "paper_proj_manifold_dist": 0.02774651348590851,
+      "pass": true
+    },
+    {
+      "dataset": "3d_vz_2d_ellipse_traj",
+      "seed": 0,
+      "epochs": 2000,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.005918916314840317,
+      "paper_proj_manifold_dist": 0.005918916314840317,
+      "pass": true
+    },
+    {
+      "dataset": "6d_spatial_arm_up_n6_py_traj",
+      "seed": 0,
+      "epochs": 400,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.1030847504734993,
+      "paper_proj_manifold_dist": 0.1030847504734993,
+      "pass": true
+    },
+    {
+      "dataset": "6d_surf_normal_traj",
+      "seed": 0,
+      "epochs": 2200,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.06435589492321014,
+      "paper_proj_manifold_dist": 0.06435589492321014,
+      "pass": true
+    },
+    {
+      "dataset": "RealKuka",
+      "seed": 0,
+      "epochs": 400,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.06087611988186836,
+      "paper_proj_manifold_dist": 0.06087611988186836,
+      "pass": true
+    },
+    {
+      "dataset": "linked_curves_3d",
+      "seed": 0,
+      "epochs": 2000,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.02202371135354042,
+      "paper_proj_manifold_dist": 0.02202371135354042,
+      "pass": true
+    },
+    {
+      "dataset": "multi_handle_4d",
+      "seed": 0,
+      "epochs": 3200,
+      "max_weight_abs_diff": 0.0,
+      "metric_differences": [],
+      "source_proj_manifold_dist": 0.0247541181743145,
+      "paper_proj_manifold_dist": 0.0247541181743145,
+      "pass": true
+    }
+  ],
+  "simulation": [
+    {
+      "environment": "surfnormal",
+      "numeric_differences": [],
+      "pass": true,
+      "note": "Source SurfNormal imports were aliased in memory to their renamed modules; no source files were edited."
+    },
+    {
+      "environment": "dual_arm",
+      "numeric_differences": [],
+      "pass": true,
+      "note": "Default path_0 has large errors in both source and publication; parity is not a quality threshold."
+    }
+  ],
+  "timing_excluded": true,
+  "environment": {
+    "torch": "2.10.0+cu128",
+    "gpu": "NVIDIA GeForce RTX 3070",
+    "python": "3.10.18"
+  },
+  "source_commit": "c740a3e5d04a766509b486b619e35a55160b5c9e",
+  "lasa_base_commit": "b0456e22dd4f583912a9cefacbeff1fee7431e3f",
+  "validation_scope": {
+    "full_training": "ONCL, seed 0, ten main synthetic tasks + RealKuka + three geometry examples",
+    "other_real_variants": "Load-tested only",
+    "other_methods": "DataAug and VAE independently trained with seed 0 on six newly added publication tasks; ECoMaNN preserved but not retrained.",
+    "simulation_comparison": "SurfNormal waypoint and dual-arm numerical summaries; source SurfNormal imports aliased in memory; dual-arm source replay uses the same generated plan"
+  },
+  "entrypoints": {
+    "paper_benchmark_real_training": true,
+    "paper_benchmark_core_resume": true,
+    "synthetic_benchmark_plots": true,
+    "real_kuka_benchmark_plots": true,
+    "surfnormal_obstacle_headless": true
+  },
+  "dual_arm_paths": {
+    "path_0": {
+      "left_ik": {
+        "mean_pos_err": 0.000972552050370723,
+        "max_pos_err": 0.03804444521665573,
+        "first_pos_err": 3.353232841618592e-06,
+        "mean_ori_err_deg": 0.009509623982012272,
+        "max_ori_err_deg": 0.37114977836608887
+      },
+      "right_ik": {
+        "mean_pos_err": 0.035537175834178925,
+        "max_pos_err": 0.24250191450119019,
+        "first_pos_err": 4.54336395705468e-06,
+        "mean_ori_err_deg": 1.0738407373428345,
+        "max_ori_err_deg": 5.572851657867432
+      },
+      "exec_pos_err_left": {
+        "mean": 0.11692672222852707,
+        "std": 0.06359495967626572,
+        "max": 0.23105311393737793
+      },
+      "exec_pos_err_right": {
+        "mean": 0.13197700679302216,
+        "std": 0.0623009093105793,
+        "max": 0.24536383152008057
+      },
+      "exec_true_constraint": {
+        "left_pos_err": {
+          "mean": 0.1943826824426651,
+          "std": 0.20570512115955353,
+          "max": 0.6137809753417969
+        },
+        "right_pos_err": {
+          "mean": 0.17138144373893738,
+          "std": 0.1604512482881546,
+          "max": 0.4399283230304718
+        },
+        "mean_pos_err": {
+          "mean": 0.18288207054138184,
+          "std": 0.18245786428451538,
+          "max": 0.5268546342849731
+        },
+        "left_ori_err_deg": {
+          "mean": 20.41164207458496,
+          "std": 19.855213165283203,
+          "max": 58.256591796875
+        },
+        "right_ori_err_deg": {
+          "mean": 17.960968017578125,
+          "std": 17.328487396240234,
+          "max": 50.12458038330078
+        },
+        "mean_ori_err_deg": {
+          "mean": 19.18630599975586,
+          "std": 18.590784072875977,
+          "max": 54.19058609008789
+        },
+        "analytic_vector_dist": {
+          "mean": 0.7079756855964661,
+          "std": 0.683325469493866,
+          "max": 1.975175380706787
+        },
+        "center_err": {
+          "mean": 0.1563393473625183,
+          "std": 0.156650111079216,
+          "max": 0.430407851934433
+        },
+        "span_err": {
+          "mean": 0.04100997373461723,
+          "std": 0.05452156811952591,
+          "max": 0.21787887811660767
+        }
+      }
+    },
+    "path_1": {
+      "left_ik": {
+        "mean_pos_err": 5.282057827571407e-06,
+        "max_pos_err": 8.132949915307108e-06,
+        "first_pos_err": 4.646000434149755e-06,
+        "mean_ori_err_deg": 0.0004945584805682302,
+        "max_ori_err_deg": 0.03956468030810356
+      },
+      "right_ik": {
+        "mean_pos_err": 5.372445684770355e-06,
+        "max_pos_err": 8.492629604006652e-06,
+        "first_pos_err": 6.888802090543322e-06,
+        "mean_ori_err_deg": 0.0004945584805682302,
+        "max_ori_err_deg": 0.03956468030810356
+      },
+      "exec_pos_err_left": {
+        "mean": 0.04575331509113312,
+        "std": 0.030836276710033417,
+        "max": 0.0880480408668518
+      },
+      "exec_pos_err_right": {
+        "mean": 0.04540011286735535,
+        "std": 0.030821049585938454,
+        "max": 0.09390323609113693
+      },
+      "exec_true_constraint": {
+        "left_pos_err": {
+          "mean": 0.004736168775707483,
+          "std": 0.003432118333876133,
+          "max": 0.011524795554578304
+        },
+        "right_pos_err": {
+          "mean": 0.005835522897541523,
+          "std": 0.004343222361057997,
+          "max": 0.014168285764753819
+        },
+        "mean_pos_err": {
+          "mean": 0.005285846069455147,
+          "std": 0.0037676922511309385,
+          "max": 0.012032728642225266
+        },
+        "left_ori_err_deg": {
+          "mean": 0.9832866787910461,
+          "std": 0.7678305506706238,
+          "max": 2.347853899002075
+        },
+        "right_ori_err_deg": {
+          "mean": 0.9828832149505615,
+          "std": 0.7649432420730591,
+          "max": 2.3215301036834717
+        },
+        "mean_ori_err_deg": {
+          "mean": 0.9830849170684814,
+          "std": 0.7663313150405884,
+          "max": 2.3346920013427734
+        },
+        "analytic_vector_dist": {
+          "mean": 0.035230737179517746,
+          "std": 0.0271852258592844,
+          "max": 0.08325228840112686
+        },
+        "center_err": {
+          "mean": 0.0011646965285763144,
+          "std": 0.0006734352791681886,
+          "max": 0.0025029184762388468
+        },
+        "span_err": {
+          "mean": 0.001026747515425086,
+          "std": 0.0007985883275978267,
+          "max": 0.002620875835418701
+        }
+      }
+    },
+    "path_2": {
+      "left_ik": {
+        "mean_pos_err": 5.6721819419180974e-06,
+        "max_pos_err": 8.270788384834304e-06,
+        "first_pos_err": 4.9350746849086136e-06,
+        "mean_ori_err_deg": 0.0,
+        "max_ori_err_deg": 0.0
+      },
+      "right_ik": {
+        "mean_pos_err": 5.665790467901388e-06,
+        "max_pos_err": 8.165537110471632e-06,
+        "first_pos_err": 3.6661172089225147e-06,
+        "mean_ori_err_deg": 0.0,
+        "max_ori_err_deg": 0.0
+      },
+      "exec_pos_err_left": {
+        "mean": 0.05498259514570236,
+        "std": 0.031003035604953766,
+        "max": 0.09309159219264984
+      },
+      "exec_pos_err_right": {
+        "mean": 0.05489625781774521,
+        "std": 0.030496690422296524,
+        "max": 0.09690198302268982
+      },
+      "exec_true_constraint": {
+        "left_pos_err": {
+          "mean": 0.004105009604245424,
+          "std": 0.0036463928408920765,
+          "max": 0.012064889073371887
+        },
+        "right_pos_err": {
+          "mean": 0.004783458076417446,
+          "std": 0.0052163382060825825,
+          "max": 0.0179403405636549
+        },
+        "mean_pos_err": {
+          "mean": 0.004444234073162079,
+          "std": 0.00424270611256361,
+          "max": 0.014957419596612453
+        },
+        "left_ori_err_deg": {
+          "mean": 0.7858752608299255,
+          "std": 0.886284351348877,
+          "max": 2.931445837020874
+        },
+        "right_ori_err_deg": {
+          "mean": 0.7826801538467407,
+          "std": 0.8785415887832642,
+          "max": 2.912419080734253
+        },
+        "mean_ori_err_deg": {
+          "mean": 0.7842776775360107,
+          "std": 0.8823902010917664,
+          "max": 2.9219324588775635
+        },
+        "analytic_vector_dist": {
+          "mean": 0.028348615393042564,
+          "std": 0.03121906891465187,
+          "max": 0.10423437505960464
+        },
+        "center_err": {
+          "mean": 0.001571843633428216,
+          "std": 0.001023107790388167,
+          "max": 0.0042509702034294605
+        },
+        "span_err": {
+          "mean": 0.0008406396373175085,
+          "std": 0.0006551035912707448,
+          "max": 0.0021548867225646973
+        }
+      }
+    }
+  },
+  "real_dataset_loading_before_cleanup": [
+    {
+      "dataset": "real_iiwa_plane_surface_fixed_orientation",
+      "shape": [
+        239,
+        3
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_plane_surface_free_orientation",
+      "shape": [
+        272,
+        3
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_curved_surface_position",
+      "shape": [
+        843,
+        3
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_curved_surface_position_normalized",
+      "shape": [
+        843,
+        3
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_curved_surface_pose_toolz",
+      "shape": [
+        13538,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_curved_surface_pose_toolz_normalized",
+      "shape": [
+        13538,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "RealKuka",
+      "shape": [
+        1283,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_oracle_controller_demonstrations_20260720_toolz_normalized",
+      "shape": [
+        2971,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_curved_surface_position_uniform1200",
+      "shape": [
+        1200,
+        3
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_curved_surface_position_uniform1200_normalized",
+      "shape": [
+        1200,
+        3
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_oracle_controller_demonstrations_20260720_toolz_traj4_normalized",
+      "shape": [
+        174,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_oracle_controller_demonstrations_20260720_toolz_traj8_normalized",
+      "shape": [
+        339,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_oracle_controller_demonstrations_20260720_toolz_traj16_normalized",
+      "shape": [
+        801,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_oracle_controller_demonstrations_20260720_toolz_traj28_normalized",
+      "shape": [
+        1458,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_oracle_controller_demonstrations_20260720_toolz_first15_normalized",
+      "shape": [
+        769,
+        6
+      ],
+      "status": "pass"
+    },
+    {
+      "dataset": "real_iiwa_oracle_controller_demonstrations_20260720_toolz_random20_seed20260721_normalized",
+      "shape": [
+        1002,
+        6
+      ],
+      "status": "pass"
+    }
+  ],
+  "real_dataset_loading": [
+    {
+      "dataset": "RealKuka",
+      "shape": [
+        1283,
+        6
+      ],
+      "status": "pass"
+    }
+  ],
+  "post_migration_cleanup": {
+    "applies_to": [
+      "LearnEqConstraints",
+      "ONCL-paper"
+    ],
+    "removed": "two plane tasks and six Oracle trajectory subsets",
+    "retained": "Oracle full and 3 mm files unchanged; RealKuka and six curved-surface variants",
+    "training_repeated": false,
+    "reason": "Only removed registrations/data and dedicated tools; retained training data unchanged"
+  },
+  "publication_only_real_data_cleanup": {
+    "retained_dataset": "RealKuka",
+    "registered_real_dataset_count": 1,
+    "source_modified": false,
+    "data_grid_transforms_constraint_distances_identical_to_source": true,
+    "simulation_imports_pass": true,
+    "removed_files": [
+      "datasets/real_iiwa/tasks/curved_surface_position/task.json",
+      "datasets/real_iiwa/tasks/curved_surface_position/processed/train_sets/tcp1845_pose_toolz_samples_normalized_v001.npz",
+      "datasets/real_iiwa/tasks/curved_surface_position/processed/train_sets/tcp1845_pose_toolz_samples_v001.npz",
+      "datasets/real_iiwa/tasks/curved_surface_position/processed/train_sets/tcp1845_fit_points_normalized_v001.npz",
+      "datasets/real_iiwa/tasks/curved_surface_position/processed/train_sets/tcp1845_uniform_surface_1200_normalized_v001.npz",
+      "datasets/real_iiwa/tasks/curved_surface_position/processed/train_sets/tcp1845_uniform_surface_1200_v001.npz",
+      "datasets/real_iiwa/tasks/curved_surface_position/processed/train_sets/tcp1845_fit_points_v001.npz",
+      "datasets/real_iiwa/tasks/curved_surface_position/processed/train_sets/tcp1845_pose_samples_v001.npz",
+      "datasets/real_iiwa/tasks/curved_surface_position/raw/true_surface_fit_points.csv",
+      "datasets/real_iiwa/tasks/curved_surface_position/raw/pose_reconstruction_metadata.json",
+      "datasets/real_iiwa/tasks/curved_surface_position/raw/true_surface_pose_samples.csv",
+      "configs/datasets/real_iiwa_oracle_controller_demonstrations_20260720_toolz_normalized.json",
+      "configs/datasets/real_iiwa_curved_surface_position_normalized.json",
+      "configs/datasets/real_iiwa_curved_surface_pose_toolz_normalized.json",
+      "configs/datasets/real_iiwa_curved_surface_position.json",
+      "configs/datasets/real_iiwa_curved_surface_pose_toolz.json",
+      "configs/datasets/real_iiwa_curved_surface_position_uniform1200_normalized.json",
+      "configs/datasets/real_iiwa_curved_surface_position_uniform1200.json",
+      "configs/method_dataset/ecomann_real_iiwa_oracle_controller_demonstrations_20260720_toolz_normalized.json",
+      "configs/method_dataset/oncl_real_iiwa_curved_surface_pose_toolz_normalized.json",
+      "configs/method_dataset/oncl_real_iiwa_curved_surface_position_normalized.json",
+      "configs/method_dataset/oncl_real_iiwa_curved_surface_position_uniform1200.json",
+      "configs/method_dataset/oncl_real_iiwa_curved_surface_position.json",
+      "configs/method_dataset/dataaug_real_iiwa_oracle_controller_demonstrations_20260720_toolz_normalized.json",
+      "configs/method_dataset/vae_real_iiwa_oracle_controller_demonstrations_20260720_toolz_normalized.json",
+      "configs/method_dataset/oncl_real_iiwa_oracle_controller_demonstrations_20260720_toolz_normalized.json",
+      "configs/method_dataset/oncl_real_iiwa_curved_surface_position_uniform1200_normalized.json",
+      "datasets/real_iiwa/tasks/RealKuka/processed/train_sets/oracle_controller_demonstrations_20260720_actual_toolz_full_v001.npz",
+      "datasets/real_iiwa/tasks/RealKuka/processed/train_sets/oracle_controller_demonstrations_20260720_actual_toolz_arc3mm_v001.npz",
+      "tools/build_iiwa_curved_pose_toolz_dataset.py",
+      "tools/preprocess_iiwa_curved_surface_dataset.py",
+      "tools/build_iiwa_oracle_demo_toolz_dataset.py"
+    ],
+    "training_repeated": false
+  },
+  "baseline_validation": {
+    "methods": [
+      "dataaug",
+      "vae"
+    ],
+    "datasets": [
+      "linked_curves_3d",
+      "multi_handle_4d",
+      "RealKuka",
+      "3d_faceted_sphere_surface_traj",
+      "3d_genus3_tube_surface_traj",
+      "3d_spiky_sphere_surface_traj"
+    ],
+    "seed": 0,
+    "pass": true,
+    "scope": "Only publication benchmark/geometry datasets absent from original LASA; renamed SurfNormal environment excluded.",
+    "protocol": "Independent full training in both checkouts; current defaults; only seed overridden; timing and output paths excluded from comparison.",
+    "comparisons": [
+      {
+        "method": "dataaug",
+        "dataset": "linked_curves_3d",
+        "seed": 0,
+        "pass": true,
+        "epochs": 1500,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.022176552563905716,
+        "paper_proj_manifold_dist": 0.022176552563905716
+      },
+      {
+        "method": "dataaug",
+        "dataset": "multi_handle_4d",
+        "seed": 0,
+        "pass": true,
+        "epochs": 1500,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.06821499764919281,
+        "paper_proj_manifold_dist": 0.06821499764919281
+      },
+      {
+        "method": "dataaug",
+        "dataset": "RealKuka",
+        "seed": 0,
+        "pass": true,
+        "epochs": 2000,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.07122552394866943,
+        "paper_proj_manifold_dist": 0.07122552394866943
+      },
+      {
+        "method": "dataaug",
+        "dataset": "3d_faceted_sphere_surface_traj",
+        "seed": 0,
+        "pass": true,
+        "epochs": 2000,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.022735394537448883,
+        "paper_proj_manifold_dist": 0.022735394537448883
+      },
+      {
+        "method": "dataaug",
+        "dataset": "3d_genus3_tube_surface_traj",
+        "seed": 0,
+        "pass": true,
+        "epochs": 2000,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.06119459867477417,
+        "paper_proj_manifold_dist": 0.06119459867477417
+      },
+      {
+        "method": "dataaug",
+        "dataset": "3d_spiky_sphere_surface_traj",
+        "seed": 0,
+        "pass": true,
+        "epochs": 2000,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.05142858996987343,
+        "paper_proj_manifold_dist": 0.05142858996987343
+      },
+      {
+        "method": "vae",
+        "dataset": "linked_curves_3d",
+        "seed": 0,
+        "pass": true,
+        "epochs": 2400,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.04491288214921951,
+        "paper_proj_manifold_dist": 0.04491288214921951
+      },
+      {
+        "method": "vae",
+        "dataset": "multi_handle_4d",
+        "seed": 0,
+        "pass": true,
+        "epochs": 3000,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.05270513519644737,
+        "paper_proj_manifold_dist": 0.05270513519644737
+      },
+      {
+        "method": "vae",
+        "dataset": "RealKuka",
+        "seed": 0,
+        "pass": true,
+        "epochs": 800,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.06638465821743011,
+        "paper_proj_manifold_dist": 0.06638465821743011
+      },
+      {
+        "method": "vae",
+        "dataset": "3d_faceted_sphere_surface_traj",
+        "seed": 0,
+        "pass": true,
+        "epochs": 800,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.025726817548274994,
+        "paper_proj_manifold_dist": 0.025726817548274994
+      },
+      {
+        "method": "vae",
+        "dataset": "3d_genus3_tube_surface_traj",
+        "seed": 0,
+        "pass": true,
+        "epochs": 800,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.06815050542354584,
+        "paper_proj_manifold_dist": 0.06815050542354584
+      },
+      {
+        "method": "vae",
+        "dataset": "3d_spiky_sphere_surface_traj",
+        "seed": 0,
+        "pass": true,
+        "epochs": 800,
+        "model_keys_match": true,
+        "max_weight_abs_diff": 0.0,
+        "training_arrays_equal": true,
+        "metric_differences": [],
+        "config_numeric_differences": [],
+        "source_proj_manifold_dist": 0.06381966918706894,
+        "paper_proj_manifold_dist": 0.06381966918706894
+      }
+    ],
+    "logs_and_models": "outputs/migration_validation/baselines/",
+    "source_worktree_unchanged": true,
+    "ecomann_validated": false,
+    "old_environments_stopped_at_user_request": true
+  },
+  "publication_checks": {
+    "cli_checks": [
+      {
+        "module": "runners.run_one",
+        "exit_code": 0
+      },
+      {
+        "module": "runners.run_benchmark",
+        "exit_code": 0
+      },
+      {
+        "module": "runners.run_paper_benchmark",
+        "exit_code": 0
+      },
+      {
+        "module": "benchmark.plot_paper_benchmarks",
+        "exit_code": 0
+      },
+      {
+        "module": "planning.compare_planning_methods",
+        "exit_code": 0
+      },
+      {
+        "module": "planning.plan_dual_arm",
+        "exit_code": 0
+      },
+      {
+        "module": "simulation.sim_sine_pose_waypoints",
+        "exit_code": 0
+      },
+      {
+        "module": "simulation.sim_sine_pose_obsavoid",
+        "exit_code": 0
+      },
+      {
+        "module": "simulation.sim_dual_arm_planned_path",
+        "exit_code": 0
+      }
+    ],
+    "ecomann_bundled_import_and_forward": true,
+    "real_kuka_loading": true,
+    "citation_yaml": true,
+    "compileall": true,
+    "clean_environment_installation_tested": false,
+    "pip_requirements_dry_run_pass": true,
+    "publication_snapshot_mib": 20.115,
+    "venue": "IEEE Robotics and Automation Letters, 2026"
+  }
+}
