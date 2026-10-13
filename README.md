@@ -5,6 +5,19 @@ Baiyu Peng, Albert Árboles, and Aude Billard.
 **IEEE Robotics and Automation Letters (RA-L), 2026**
 Supported by the euROBIN Grant.
 
+## Citation
+
+```bibtex
+@article{peng2026oncl,
+  title   = {Learning Equality Constraints from Trajectory Demonstrations},
+  author  = {Peng, Baiyu and {\'A}rboles, Albert and Billard, Aude},
+  journal = {IEEE Robotics and Automation Letters},
+  year    = {2026}
+}
+```
+
+Machine-readable metadata is provided in [CITATION.cff](CITATION.cff).
+
 ONCL (Orthonormal Neural Constraint Learning) learns differentiable equality
 constraints from feasible demonstrations. This repository contains ONCL, DataAug,
 VAE and ECoMaNN, synthetic and recorded robot datasets, training/evaluation,
@@ -33,9 +46,9 @@ PyBullet is needed for the simulations; optional video export also uses FFmpeg.
 No ROS installation or robot connection is needed to train or evaluate RealKuka.
 On servers without a display, set `export MPLBACKEND=Agg` before running experiments.
 
-The modified ECoMaNN dependency is included under `smp_manifold_learning-master/`
-and loaded directly by `methods/ecomann.py`. Do not separately install its legacy
-`setup.py`, which lists obsolete TensorFlow/SciPy dependencies unrelated to this adapter.
+The adapted PyTorch implementation of ECoMaNN is included under
+`smp_manifold_learning-master/` and loaded directly by `methods/ecomann.py`.
+The installation command above also covers ECoMaNN; no separate installation is required.
 The original implementation is by Sutanto et al., CoRL 2020 / PMLR 155 (2021).
 
 ## Quick start: train and evaluate one task
@@ -75,9 +88,6 @@ Multiple seeds and methods are supported, for example:
 python -m runners.run_paper_benchmark --methods oncl,dataaug,vae,ecomann --seeds 0,1,2 --outdir outputs/bench/comparison
 python -m runners.run_one --method oncl --dataset RealKuka --seed 0 --outdir outputs/real_kuka
 ```
-
-The commands above illustrate single-seed and multi-seed runs. They do not specify
-the seed sets for individual paper figures.
 
 Run a specific group or an arbitrary dataset subset:
 
@@ -205,16 +215,3 @@ external raw-input paths. See [DATASETS.md](DATASETS.md) for the data layout.
 ECoMaNN's original MIT license is included in
 [smp_manifold_learning-master/LICENSE](smp_manifold_learning-master/LICENSE).
 Texture attribution is in [datasets/assets/textures/README.md](datasets/assets/textures/README.md).
-
-## Citation
-
-```bibtex
-@article{peng2026oncl,
-  title   = {Learning Equality Constraints from Trajectory Demonstrations},
-  author  = {Peng, Baiyu and {\'A}rboles, Albert and Billard, Aude},
-  journal = {IEEE Robotics and Automation Letters},
-  year    = {2026}
-}
-```
-
-Machine-readable metadata is provided in [CITATION.cff](CITATION.cff).

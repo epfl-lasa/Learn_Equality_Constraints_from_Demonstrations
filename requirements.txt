@@ -24,4 +24,3 @@ wandb
 pybullet
 
 # ECoMaNN is loaded from the bundled source by methods/ecomann.py.
-# Do not install its legacy setup.py (it pins obsolete TensorFlow/SciPy).

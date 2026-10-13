@@ -15,17 +15,10 @@ from torch.utils.data import DataLoader
 def _add_smp_repo_to_path() -> str:
     here = os.path.abspath(os.path.dirname(__file__))
     repo_root = os.path.abspath(os.path.join(here, ".."))
-    legacy_root = os.path.abspath(os.path.join(here, "..", ".."))
-    candidates = [
-        os.path.join(legacy_root, "smp_manifold_learning-master"),
-        os.path.join(repo_root, "smp_manifold_learning-master"),
-    ]
-    smp_root = next((p for p in candidates if os.path.isdir(p)), None)
-    if smp_root is None:
+    smp_root = os.path.join(repo_root, "smp_manifold_learning-master")
+    if not os.path.isdir(smp_root):
         raise FileNotFoundError(
-            "EcoMaNN repo not found at expected path: "
-            f"{candidates[0]} or {candidates[1]}. "
-            "Please place smp_manifold_learning-master there."
+            f"Bundled ECoMaNN source not found: {smp_root}"
         )
     if smp_root not in sys.path:
         sys.path.insert(0, smp_root)
