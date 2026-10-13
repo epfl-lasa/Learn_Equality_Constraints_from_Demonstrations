@@ -198,8 +198,7 @@ spatial arc-length spacing and cropped to remove entry/exit segments. Training
 reads `datasets/real_iiwa/tasks/RealKuka/processed/train_sets/human_demo_paper_toolz_arc3mm_cropped_v001.npz`
 directly. The accompanying metadata and calibration checkpoint/grid provide
 normalization, reference-surface generation and evaluation. Raw ROS bags are not
-included or required for these experiments. Optional preprocessing scripts accept
-external raw-input paths. See [DATASETS.md](DATASETS.md) for the data layout.
+included or required for these experiments. See [DATASETS.md](DATASETS.md) for the data layout.
 
 ## Repository layout
 

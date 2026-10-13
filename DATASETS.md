@@ -33,9 +33,7 @@ The task metadata records the source collection and recording filenames.
 
 The `RealKuka` default is `human_demo_paper_toolz_arc3mm_cropped_v001.npz`,
 with 1,283 points. It was subsampled at 3 mm arc length and cropped to remove
-entry/exit segments. Raw inputs must be provided
-explicitly to the optional preprocessing scripts; processed-data training is
-self-contained.
+entry/exit segments. Training and evaluation use the included processed data.
 
 Synthetic caches are generated locally and ignored by Git.
 

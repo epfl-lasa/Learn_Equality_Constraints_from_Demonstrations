@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Iterable
 
 import numpy as np
 
@@ -11,7 +12,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from datasets.ros.transforms import quat_to_matrix_xyzw
+def quat_to_matrix_xyzw(q: Iterable[float]) -> np.ndarray:
+    x, y, z, w = [float(v) for v in q]
+    n = x * x + y * y + z * z + w * w
+    if n == 0.0:
+        return np.eye(3)
+    s = 2.0 / n
+    xx, yy, zz = x * x * s, y * y * s, z * z * s
+    xy, xz, yz = x * y * s, x * z * s, y * z * s
+    wx, wy, wz = w * x * s, w * y * s, w * z * s
+    return np.array(
+        [
+            [1.0 - yy - zz, xy - wz, xz + wy],
+            [xy + wz, 1.0 - xx - zz, yz - wx],
+            [xz - wy, yz + wx, 1.0 - xx - yy],
+        ],
+        dtype=np.float64,
+    )
 
 
 def _task_root(path: Path) -> Path | None:

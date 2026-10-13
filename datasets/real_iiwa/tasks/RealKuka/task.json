@@ -25,7 +25,7 @@
     "metadata_json": "passive_demo_20260721_152907_demonstration_test.json",
     "default_demonstration": "human_demo_paper",
     "default_processed_train_npz": "processed/train_sets/human_demo_paper_toolz_arc3mm_cropped_v001.npz",
-    "default_processing_script": "tools/build_iiwa_passive_demo_toolz_dataset.py --arc-mm 3 followed by start/end crop",
+    "processing": "Greedy 3 mm XYZ arc-length thinning followed by cropping to the index interval [50, 1333).",
     "crop_arc_start_index": 50,
     "crop_arc_end_exclusive_index": 1333
   },
