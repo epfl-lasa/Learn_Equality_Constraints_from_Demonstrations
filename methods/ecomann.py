@@ -22,7 +22,7 @@ def _add_smp_repo_to_path() -> str:
         )
     if smp_root not in sys.path:
         sys.path.insert(0, smp_root)
-    # Py3.8+: preserve original behavior used by upstream code.
+    # Provide the timer API used by the ECoMaNN data loader on Python 3.8+.
     if not hasattr(time, "clock"):
         time.clock = time.perf_counter  # type: ignore[attr-defined]
     return smp_root

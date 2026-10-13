@@ -1379,7 +1379,7 @@ def _plot_dual_arm_guided_insertion_orientation_3d(
 
     ax.scatter(center_s[:, 0], center_s[:, 1], center_s[:, 2], s=9, c="#111827", alpha=0.36, label="projected centers")
 
-    # Overlay the current vertical-ribbon center manifold for interpretation.
+    # Overlay the vertical-ribbon center manifold.
     s_true = np.linspace(-1.0, 1.0, 240, dtype=np.float32)
     center_mid, tang_true, _y_true, z_true = _dual_arm_curve_center_tnb_from_s(
         s_true,

@@ -57,7 +57,7 @@ def plot_contour_traj_2d(
     if levels.size > 1:
         cs = plt.contour(xx, yy, v, levels=levels[1:], linewidths=0.8, colors="#475569")
         plt.clabel(cs, inline=1, fontsize=7, fmt="%.2f")
-    # Zero-band contour region (legacy style).
+    # Shade the region below the residual threshold.
     plt.contourf(xx, yy, np.sqrt(np.maximum(v * 2.0, 0.0)), levels=[0.0, eps_h], colors=["#f59e0b"], alpha=0.32)
     plt.scatter(x_train[:, 0], x_train[:, 1], s=8, c="gray", alpha=0.62, zorder=3)
 

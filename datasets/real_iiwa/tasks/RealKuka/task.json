@@ -18,9 +18,9 @@
       "source": "Training uses recorded/reconstructed human demonstration tool local z-axis."
     }
   },
-  "notes": "Default training set is human_demo_paper, greedily thinned by 3 mm xyz arc length and cropped to remove enter/leave segments. Input x is [surface-model normalized xyz, recorded tool_z_x, tool_z_y, tool_z_z]. Additional RealKuka demonstrations can be added as separate train_sets under this task.",
+  "notes": "Human demonstrations greedily thinned by 3 mm xyz arc length and cropped to remove entry/exit segments. Input x is [surface-model normalized xyz, recorded tool_z_x, tool_z_y, tool_z_z].",
   "source": {
-    "external_directory": "/home/baiyu/iiwa_share/demonstration_test",
+    "source_collection": "demonstration_test",
     "raw_csv": "passive_demo_20260721_152907_demonstration_test.csv",
     "metadata_json": "passive_demo_20260721_152907_demonstration_test.json",
     "default_demonstration": "human_demo_paper",

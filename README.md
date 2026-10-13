@@ -25,7 +25,7 @@ and 6D SurfNormal / 12D dual-arm planning and simulation.
 
 ## Installation
 
-Python **3.10** is recommended. Validation used Python 3.10.18, PyTorch 2.10.0
+Python **3.10** is recommended. Tested environment: Python 3.10.18, PyTorch 2.10.0
 with CUDA 12.8, and an NVIDIA RTX 3070. On Linux:
 
 ```bash
@@ -38,7 +38,7 @@ python -m pip install -r requirements.txt -c constraints-tested.txt
 ```
 
 Run all experiment commands from the repository root. The constraints file records
-the direct package versions used for validation; omit `-c constraints-tested.txt`
+the tested direct dependency versions; omit `-c constraints-tested.txt`
 to use your own compatible versions. Training selects CUDA when available;
 append `--override device=cpu` for CPU execution. W&B logging is disabled by default
 and is enabled only with `--wandb-enable`.

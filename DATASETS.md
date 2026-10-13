@@ -29,8 +29,7 @@ through `datasets/real_iiwa/registry.py`.
 | `tasks/RealKuka/task.json` | Data provenance, preprocessing and calibration references |
 | `surface_models/calibrated_tcp1845_neural_1d_surface_model/` | Surface checkpoint, grid and normalization metadata used for evaluation |
 
-Acquisition paths in the task metadata document the source recordings and are
-not required at runtime.
+The task metadata records the source collection and recording filenames.
 
 The `RealKuka` default is `human_demo_paper_toolz_arc3mm_cropped_v001.npz`,
 with 1,283 points. It was subsampled at 3 mm arc length and cropped to remove
@@ -38,8 +37,7 @@ entry/exit segments. Raw inputs must be provided
 explicitly to the optional preprocessing scripts; processed-data training is
 self-contained.
 
-Synthetic caches are regenerated locally and ignored by Git. No previous
-training outputs or videos are needed to train these tasks.
+Synthetic caches are generated locally and ignored by Git.
 
 ## Additional geometry
 

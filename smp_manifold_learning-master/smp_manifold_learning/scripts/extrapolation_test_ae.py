@@ -17,7 +17,7 @@ def extrapolation_test_ae(unit_circle_polar_angle_boundary,
                           weight_decay=0.0,
                           num_epochs=50, batch_size=128, 
                           device='cpu'):
-    rand_seed = 38  # selected random seed (can be changed or varied for experiments of course)
+    rand_seed = 38
     nmse_threshold = 0.1
     
     np.random.seed(rand_seed)

@@ -1425,7 +1425,7 @@ def _spatial_arm_plane_n3(cfg) -> Tuple[np.ndarray, np.ndarray]:
 def _spatial_arm_ellip_n3(cfg) -> Tuple[np.ndarray, np.ndarray]:
     # 3-DoF arm (q1 yaw, q2/q3 pitch chain) constrained to workspace ellipse:
     # x = a cos(t), y = b sin(t), z = z0  (codim=2 in 3D joint space).
-    # Keep old dataset alias for backward compatibility.
+    # The circle dataset name is an alias for this ellipse parameterization.
     l1, l2 = 1.0, 0.8
     a = 1.35
     b = 0.95

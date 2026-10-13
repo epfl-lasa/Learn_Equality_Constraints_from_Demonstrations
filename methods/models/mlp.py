@@ -21,11 +21,10 @@ class MLP(nn.Module):
 
 
 class NormalizedMLP(nn.Module):
-    """Compatibility wrapper for older checkpoints/scripts.
+    """MLP with input centering, scaling and optional angle wrapping.
 
-    New scale-invariant DataAug training uses FeatureNormalizedModel outside the
-    base MLP. This class is kept so legacy loaders that reference
-    model_type="normalized_mlp" still work.
+    Checkpoint loaders use this class for model_type="normalized_mlp".
+    DataAug training wraps a base MLP with FeatureNormalizedModel.
     """
 
     def __init__(

@@ -363,7 +363,7 @@ def _resample_path_center_arclength(path: np.ndarray, n_waypoints: int) -> np.nd
     pp = np.asarray(path, dtype=np.float32)
     n_dst = int(max(2, n_waypoints))
     if len(pp) == n_dst:
-        # Still reparameterize in case the source has collapsed waypoint clusters.
+        # Reparameterize collapsed waypoint clusters.
         pass
     center = _centers(pp).astype(np.float32)
     ds = np.linalg.norm(np.diff(center, axis=0), axis=1).astype(np.float32)

@@ -8,12 +8,12 @@
   "source_bag": "2026-07-18-17-21-43.bag",
   "tcp_offset_link7_m": [0.0, 0.0, 0.1845],
   "tcp_offset_ee_m": [0.0, 0.0, 0.1395],
-  "reconstruction": "Original TF samples recomputed along measured tool +Z from 111 mm to 184.5 mm before fitting.",
+  "reconstruction": "Recorded ROS transform samples corrected along measured tool +Z from a 111 mm to a 184.5 mm TCP offset before fitting.",
   "fit_model": "z = MLP(u) + a*v + b",
   "changing_axis_xy": [0.99939084, -0.03489950],
   "invariant_axis_xy": [-0.03489950, -0.99939084],
   "cross_axis_slope_m_per_m": -0.00080136,
   "fit_validation_mae_mm": 0.8493,
   "fit_validation_rmse_mm": 1.1584,
-  "orientation_constraint": "configurable by GUI"
+  "orientation_constraint": "Surface normals are computed from the fitted height field; tool-axis targets are defined in tasks/RealKuka/task.json."
 }

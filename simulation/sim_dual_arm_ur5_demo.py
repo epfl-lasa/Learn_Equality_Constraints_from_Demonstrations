@@ -1132,7 +1132,7 @@ def _parse_args() -> argparse.Namespace:
         default="0,0,90",
         help="Extra fixed local task-frame RPY offset in degrees as roll,pitch,yaw. Applied after --task-roll-deg.",
     )
-    ap.add_argument("--use-orientation", type=int, default=-1, help="legacy: 1 maps to --orientation-mode task")
+    ap.add_argument("--use-orientation", type=int, default=-1, help="1 forces task orientation; 0 selects none unless --orientation-mode is supplied.")
     ap.add_argument("--ik-iters", type=int, default=160)
     ap.add_argument("--sim-dt", type=float, default=1.0 / 180.0)
     ap.add_argument("--max-joint-speed", type=float, default=0.75)

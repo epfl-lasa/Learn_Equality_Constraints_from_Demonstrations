@@ -204,7 +204,6 @@ def train_ecmnn(dataset_filepath, initial_learning_rate=0.001, weight_decay=0.0,
                                                 max_rand_comb_normal_dim=max_rand_comb_normal_dim,
                                                 aug_epsilon_mult_override=aug_epsilon_mult_override)
 
-    # this one is only for evaluation for RSS 2020 Learning (in) TAMP Workshop; may be removed in the future...
     [_, _, _, _, _, _, all_on_manifold_dataset
      ] = on_manifold_dataloader.get_train_valid_test_dataloaders(batch_size=batch_size)
 

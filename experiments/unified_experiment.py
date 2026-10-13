@@ -1438,7 +1438,7 @@ def run_ecomann_one(
         # EcoMaNN projector: match upstream stopping rules in
         # smp_manifold_learning.motion_planner.feature.Projection
         # (tol/max_iter/step_size and divergence guard).
-        # Add aggressive dq clipping to prevent rare Newton blow-ups.
+        # Clip Newton steps to limit divergence.
         p_cfg = getattr(cfg, "projector", {}) or {}
         tol = float(p_cfg.get("tol", 1e-5))
         max_iter = int(p_cfg.get("max_iter", 200))

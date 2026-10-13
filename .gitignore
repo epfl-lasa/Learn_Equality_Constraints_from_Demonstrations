@@ -39,14 +39,14 @@ datasets/generated/
 datasets/cache/
 datasets/real_iiwa/tasks/*/figures/
 
-# Media generated during analysis/debugging
+# Generated media
 *.gif
 *.mp4
 
-# Raw ROS recordings are kept outside the publication repository.
+# Raw ROS recordings
 *.bag
 
-# Development and robot deployment artifacts are outside the publication scope.
+# Local robot recordings, assets and experiment archives
 kuka_experiment_data/
 legacy_early_test/
 datasets/assets/iiwa/
