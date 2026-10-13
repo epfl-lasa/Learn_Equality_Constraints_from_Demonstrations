@@ -3,16 +3,5 @@
   "traj_gene_n_grid": 8192,
   "off_bank_size": 48,
   "off_bank_oversample": 10,
-  "traj_count": 20,
-  "traj_knn": 20,
-  "traj_psi_step_std": 0.07,
-  "traj_turn_forward_weight": 2.0,
-  "traj_turn_noise": 0.22,
-  "traj_turn_prob": 0.3,
-  "traj_turn_direction_blend": 0.78,
-  "traj_turn_visit_weight": 0.45,
-  "traj_turn_distance_weight": 0.08,
-  "traj_turn_boundary_weight": 1.5,
-  "traj_turn_boundary_steer_weight": 0.25,
-  "traj_turn_boundary_margin_ratio": 0.1
+  "traj_count": 20
 }

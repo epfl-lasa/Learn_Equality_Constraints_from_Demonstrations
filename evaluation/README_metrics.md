@@ -8,8 +8,9 @@ run's `*_eval.json` file and in the benchmark summary tables.
 
 1. Merge evaluator defaults, the run configuration, method overrides and dataset
    overrides, in that order.
-2. Generate a reference manifold grid. Synthetic tasks use their dataset generator;
-   RealKuka uses the included calibrated surface model.
+2. Load the packaged `eval_grid` for the three fixed demonstration tasks.
+   Other synthetic tasks use their dataset generator, and RealKuka uses the
+   included calibrated surface model.
 3. Set the residual threshold `eps` to the `zero_eps_quantile` percentile of
    `||F(x_train)||₂`. Both classification and projection use this threshold.
 4. Sample query points and project them with the method's projector. Compute
@@ -23,6 +24,8 @@ reference samples; `train` selects training samples instead. Bounds come from th
 training data with padding, with task-specific handling of joint limits and angles.
 The reference grid and sampling settings affect the reported distances and should
 be held fixed when comparing methods.
+The packaged tasks use the same reference grid for all training seeds;
+`eval_gt_n_grid` controls grid generation for the other synthetic tasks.
 
 ## Prediction and projection
 

@@ -16,6 +16,26 @@ The core benchmark is defined in [configs/paper_benchmark.json](configs/paper_be
 | `12d_dual_arm_traj` | 12 | Dual-arm virtual-link constraint |
 | `RealKuka` | 6 | Recorded position and tool-z direction |
 
+## Fixed robot-task demonstrations
+
+The following synthetic demonstration sets are included under
+`datasets/demonstrations/` and loaded for every method and training seed.
+They contain joint-space or task-space trajectories sampled from the task's
+geometric constraints. PyBullet is used separately for downstream simulation.
+
+| File | Training samples | Trajectories × samples |
+| --- | ---: | ---: |
+| [6d_spatial_arm_up_n6_py_traj.npz](datasets/demonstrations/6d_spatial_arm_up_n6_py_traj.npz) | 15,000 | 500 × 30 |
+| [6d_surf_normal_traj.npz](datasets/demonstrations/6d_surf_normal_traj.npz) | 3,000 | 20 × 150 |
+| [12d_dual_arm_traj.npz](datasets/demonstrations/12d_dual_arm_traj.npz) | 1,500 | 15 × 100 |
+
+Each NPZ contains `x_train`, `grid` for task visualization/planning,
+`eval_grid` for numerical evaluation, `trajectory_lengths`, `generation_seed`
+and JSON `metadata`. All arrays use data seed 0. Training seeds control model
+randomness; sample counts and trajectory sampling options do not alter the files.
+Missing demonstration files cause a loading error. The dedicated online demo
+generators for these three dataset IDs are not included.
+
 ## Recorded data and provenance
 
 `RealKuka` contains processed human demonstrations recorded with a KUKA iiwa.
@@ -35,7 +55,7 @@ The `RealKuka` default is `human_demo_paper_toolz_arc3mm_cropped_v001.npz`,
 with 1,283 points. It was subsampled at 3 mm arc length and cropped to remove
 entry/exit segments. Training and evaluation use the included processed data.
 
-Synthetic caches are generated locally and ignored by Git.
+Other synthetic datasets are generated locally; generated caches are ignored by Git.
 
 ## Additional geometry
 

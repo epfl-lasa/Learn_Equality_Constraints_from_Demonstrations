@@ -11,6 +11,7 @@ from typing import Callable, Dict, Tuple
 
 import numpy as np
 import torch
+from datasets.fixed_demonstrations import FIXED_DEMONSTRATION_DIMS, load_fixed_demonstrations
 
 LIFT_3D_VZ_DEFAULTS = {
     "z_amp1": 0.35,
@@ -1660,225 +1661,6 @@ def _surf_normal_n6(cfg) -> Tuple[np.ndarray, np.ndarray]:
     return x_train, grid
 
 
-def _surf_normal_traj_n6(cfg) -> Tuple[np.ndarray, np.ndarray]:
-    return _surf_normal_demo_sampler_n6(cfg)
-
-
-def _traj_points_from_grid_random_turn(
-    grid: np.ndarray,
-    *,
-    n_train: int,
-    seed: int,
-    traj_count: int,
-    traj_len: int,
-    traj_knn: int,
-    forward_weight: float,
-    turn_noise: float,
-    turn_prob: float,
-    direction_blend: float,
-    visit_weight: float,
-    distance_weight: float,
-    boundary_weight: float,
-    boundary_steer_weight: float,
-    boundary_margin_ratio: float,
-) -> np.ndarray:
-    g = np.asarray(grid, dtype=np.float32)
-    if len(g) == 0:
-        return np.zeros((max(1, int(n_train)), g.shape[1] if g.ndim == 2 else 3), dtype=np.float32)
-
-    rng = np.random.default_rng(int(seed) + 971)
-    n = max(1, int(n_train))
-    n_traj = max(1, int(traj_count))
-    t_len = max(2, int(traj_len))
-    knn = _knn_indices(g, k=max(2, int(traj_knn)))
-
-    eps = 1e-8
-    starts: list[int] = []
-    starts.append(int(rng.integers(0, len(g))))
-    while len(starts) < n_traj:
-        cand = int(rng.integers(0, len(g)))
-        if cand in starts:
-            continue
-        d2 = np.sum((g[np.array(starts)] - g[cand : cand + 1]) ** 2, axis=1)
-        if float(np.min(d2)) > 0.03 * float(np.mean(np.var(g, axis=0) + eps)):
-            starts.append(cand)
-        elif float(rng.uniform()) < 0.08:
-            starts.append(cand)
-
-    visit = np.zeros((len(g),), dtype=np.int32)
-    xy_min = g[:, :2].min(axis=0)
-    xy_max = g[:, :2].max(axis=0)
-    xy_span = np.maximum(xy_max - xy_min, 1e-8)
-    margin = float(max(0.0, boundary_margin_ratio))
-    xy_lo = xy_min + margin * xy_span
-    xy_hi = xy_max - margin * xy_span
-
-    seq = []
-    for ti in range(n_traj):
-        cur = int(starts[ti % len(starts)])
-        prev_idx = -1
-        prev_dir = None
-        turn_state = None
-        for _step in range(t_len):
-            seq.append(g[cur].astype(np.float32))
-            visit[cur] += 1
-
-            nbr = knn[cur]
-            nbr = nbr[nbr != cur]
-            if prev_idx >= 0:
-                nbr = nbr[nbr != prev_idx]
-            if len(nbr) == 0:
-                cur = int(rng.integers(0, len(g)))
-                prev_idx = -1
-                prev_dir = None
-                continue
-
-            cand = nbr[: min(18, len(nbr))]
-            vec = (g[cand] - g[cur]).astype(np.float32)
-            d = np.linalg.norm(vec, axis=1) + eps
-            u = vec / d[:, None]
-            cov = visit[cand].astype(np.float32)
-            cov_gain = (np.max(cov) - cov) if len(cov) > 0 else np.zeros_like(d)
-
-            inward_dir = None
-            if float(boundary_weight) > 0.0 and margin > 0.0:
-                cur_xy = g[cur, :2]
-                inward_xy = np.zeros((2,), dtype=np.float32)
-                inward_xy += np.maximum(xy_lo - cur_xy, 0.0).astype(np.float32) / xy_span.astype(np.float32)
-                inward_xy -= np.maximum(cur_xy - xy_hi, 0.0).astype(np.float32) / xy_span.astype(np.float32)
-                inward_norm = float(np.linalg.norm(inward_xy))
-                if inward_norm > 1e-8:
-                    inward = np.array([inward_xy[0], inward_xy[1], 0.0], dtype=np.float32)
-                    inward_dir = inward / max(float(np.linalg.norm(inward)), 1e-8)
-
-            boundary_penalty = np.zeros_like(d)
-            if float(boundary_weight) > 0.0 and margin > 0.0:
-                xy = g[cand, :2]
-                below = np.maximum(xy_lo.reshape(1, 2) - xy, 0.0) / xy_span.reshape(1, 2)
-                above = np.maximum(xy - xy_hi.reshape(1, 2), 0.0) / xy_span.reshape(1, 2)
-                boundary_penalty = np.sum(below + above, axis=1).astype(np.float32)
-
-            if prev_dir is None:
-                score = (
-                    -float(distance_weight) * d
-                    + float(visit_weight) * cov_gain
-                    - float(boundary_weight) * boundary_penalty
-                )
-                if inward_dir is not None:
-                    score = score + float(boundary_steer_weight) * np.sum(u * inward_dir.reshape(1, -1), axis=1)
-                if float(turn_prob) > 0.0:
-                    score = score + rng.normal(scale=0.03 * float(turn_prob), size=score.shape).astype(np.float32)
-            else:
-                random_turn = rng.normal(size=prev_dir.shape).astype(np.float32)
-                random_turn = random_turn - float(np.dot(random_turn, prev_dir)) * prev_dir
-                random_turn_norm = float(np.linalg.norm(random_turn))
-                if random_turn_norm > 1e-8:
-                    random_turn = random_turn / random_turn_norm
-                    if turn_state is None:
-                        turn_state = random_turn.astype(np.float32)
-                    else:
-                        turn_state = (0.88 * turn_state + 0.12 * random_turn).astype(np.float32)
-                        turn_state = turn_state / max(float(np.linalg.norm(turn_state)), 1e-8)
-                desired = prev_dir.astype(np.float32)
-                if turn_state is not None and float(turn_noise) > 0.0:
-                    desired = (desired + float(turn_noise) * turn_state).astype(np.float32)
-                    desired = desired / max(float(np.linalg.norm(desired)), 1e-8)
-                if inward_dir is not None:
-                    desired = (desired + float(boundary_steer_weight) * inward_dir).astype(np.float32)
-                    desired = desired / max(float(np.linalg.norm(desired)), 1e-8)
-                align = np.clip(np.sum(u * desired.reshape(1, -1), axis=1), -1.0, 1.0)
-                score = (
-                    float(forward_weight) * align
-                    - float(distance_weight) * d
-                    + float(visit_weight) * cov_gain
-                    - float(boundary_weight) * boundary_penalty
-                )
-            nxt = int(cand[int(np.argmax(score))])
-            new_vec = (g[nxt] - g[cur]).astype(np.float32)
-            new_norm = float(np.linalg.norm(new_vec))
-            if new_norm > 1e-8:
-                new_u = new_vec / new_norm
-                if prev_dir is None:
-                    prev_dir = new_u.astype(np.float32)
-                else:
-                    blend = float(np.clip(direction_blend, 0.0, 1.0))
-                    prev_dir = (blend * prev_dir + (1.0 - blend) * new_u).astype(np.float32)
-                    prev_dir = prev_dir / max(float(np.linalg.norm(prev_dir)), 1e-8)
-            prev_idx = cur
-            cur = nxt
-
-    arr = np.asarray(seq, dtype=np.float32)
-    if len(arr) == 0:
-        return np.zeros((n, g.shape[1]), dtype=np.float32)
-    if len(arr) >= n:
-        return arr[:n].astype(np.float32)
-    rep = int(math.ceil(float(n) / float(len(arr))))
-    tiled = np.tile(arr, (rep, 1)).astype(np.float32)
-    return tiled[:n].astype(np.float32)
-
-
-def _surf_normal_demo_sampler_n6(cfg) -> Tuple[np.ndarray, np.ndarray]:
-    _, grid = _surf_normal_n6(cfg)
-    xyz_grid = grid[:, :3].astype(np.float32)
-
-    n_train = max(1, int(cfg.n_train))
-    traj_count_raw = int(getattr(cfg, "traj_count", max(12, n_train // 64)))
-    traj_count = int(max(1, min(n_train, traj_count_raw)))
-    traj_len = int(max(8, getattr(cfg, "traj_len", int(math.ceil(n_train / max(traj_count, 1))))))
-    traj_knn = int(max(4, getattr(cfg, "traj_knn", 20)))
-    xyz_train = _traj_points_from_grid_random_turn(
-        xyz_grid,
-        n_train=n_train,
-        seed=int(getattr(cfg, "seed", 0)),
-        traj_count=traj_count,
-        traj_len=traj_len,
-        traj_knn=traj_knn,
-        forward_weight=float(getattr(cfg, "traj_turn_forward_weight", 0.7)),
-        turn_noise=float(getattr(cfg, "traj_turn_noise", 0.55)),
-        turn_prob=float(getattr(cfg, "traj_turn_prob", 0.30)),
-        direction_blend=float(getattr(cfg, "traj_turn_direction_blend", 0.35)),
-        visit_weight=float(getattr(cfg, "traj_turn_visit_weight", 1.35)),
-        distance_weight=float(getattr(cfg, "traj_turn_distance_weight", 0.08)),
-        boundary_weight=float(getattr(cfg, "traj_turn_boundary_weight", 1.5)),
-        boundary_steer_weight=float(getattr(cfg, "traj_turn_boundary_steer_weight", 0.25)),
-        boundary_margin_ratio=float(getattr(cfg, "traj_turn_boundary_margin_ratio", 0.10)),
-    ).astype(np.float32)
-
-    x = xyz_train[:, 0].astype(np.float32)
-    y = xyz_train[:, 1].astype(np.float32)
-    _z_world, nvec, t1, t2 = _surface_frame_from_xy(x, y, cfg)
-
-    rng = np.random.default_rng(int(cfg.seed) + 11)
-    psi_step_std = float(max(1e-4, getattr(cfg, "traj_psi_step_std", 0.07)))
-    psi = np.zeros((n_train,), dtype=np.float64)
-    seg_len = max(2, int(math.ceil(n_train / max(traj_count, 1))))
-    for k in range(traj_count):
-        a = k * seg_len
-        b = min(n_train, (k + 1) * seg_len)
-        if a >= b:
-            continue
-        psi0 = rng.uniform(-math.pi, math.pi)
-        dpsi = rng.normal(scale=psi_step_std, size=(b - a,)).astype(np.float64)
-        psi_seg = psi0 + np.cumsum(dpsi)
-        psi[a:b] = psi_seg
-    psi = ((psi + math.pi) % (2.0 * math.pi) - math.pi).astype(np.float64)
-
-    c = np.cos(psi)[:, None]
-    s = np.sin(psi)[:, None]
-    x_axis = c * t1.astype(np.float64) + s * t2.astype(np.float64)
-    y_axis = -s * t1.astype(np.float64) + c * t2.astype(np.float64)
-    z_axis = nvec.astype(np.float64)
-
-    rpy = np.zeros((n_train, 3), dtype=np.float32)
-    for i in range(n_train):
-        R = np.stack([x_axis[i], y_axis[i], z_axis[i]], axis=1).astype(np.float64)
-        rpy[i] = _rpy_from_rotmat_zyx(R)
-    rpy = _wrap_to_pi(rpy.astype(np.float32))
-
-    x_train = np.concatenate([xyz_train.astype(np.float32), rpy], axis=1).astype(np.float32)
-    return x_train, grid.astype(np.float32)
-
-
 def _dual_arm_guided_insertion_curve(
     s: np.ndarray,
     *,
@@ -1993,73 +1775,6 @@ def _dual_arm_pose_from_s_u(
     pose_1 = np.concatenate([pos_1, rpy_1], axis=1).astype(np.float32)
     pose_2 = np.concatenate([pos_2, rpy_2], axis=1).astype(np.float32)
     return np.concatenate([pose_1, pose_2], axis=1).astype(np.float32)
-
-
-def _dual_arm_demo_height_profile(tau: np.ndarray, rng: np.random.Generator, z_half_range: float) -> np.ndarray:
-    tt = np.asarray(tau, dtype=np.float32).reshape(-1)
-    half = float(max(1e-8, z_half_range))
-    freq1 = float(rng.uniform(0.70, 1.45))
-    freq2 = float(rng.uniform(1.60, 2.60))
-    phase1 = float(rng.uniform(0.0, 2.0 * math.pi))
-    phase2 = float(rng.uniform(0.0, 2.0 * math.pi))
-    mix = float(rng.uniform(0.18, 0.42))
-    offset = float(rng.uniform(-0.18, 0.18))
-    profile = (
-        np.sin(2.0 * math.pi * freq1 * tt + phase1)
-        + mix * np.sin(2.0 * math.pi * freq2 * tt + phase2)
-        + offset
-    ).astype(np.float32)
-    profile -= float(np.mean(profile))
-    denom = max(float(np.max(np.abs(profile))), 1e-6)
-    amp = float(rng.uniform(0.45, 0.88)) * half
-    u = (amp * profile / denom).astype(np.float32)
-    return np.clip(u, -0.98 * half, 0.98 * half).astype(np.float32)
-
-
-def _dual_arm_demo_trajectory_samples(cfg, *, n_train: int, traj_count: int, traj_len: int) -> np.ndarray:
-    grasp_span = float(getattr(cfg, "dual_arm_grasp_span", 1.0))
-    x_span = float(getattr(cfg, "dual_arm_curve_x_span", 1.4))
-    y_amp = float(getattr(cfg, "dual_arm_curve_y_amp", 0.55))
-    y_freq = float(getattr(cfg, "dual_arm_curve_y_freq", 1.0))
-    z_base = float(getattr(cfg, "dual_arm_curve_z_base", 0.2))
-    z_amp = float(getattr(cfg, "dual_arm_curve_z_amp", 0.35))
-    z_freq = float(getattr(cfg, "dual_arm_curve_z_freq", 0.7))
-    z_half_range = float(getattr(cfg, "dual_arm_vertical_half_range", z_amp))
-    rng = np.random.default_rng(int(getattr(cfg, "seed", 0)) + 2903)
-
-    seq: list[np.ndarray] = []
-    n_demo = int(max(1, traj_count))
-    t_len = int(max(2, traj_len))
-    for _ in range(n_demo):
-        tau = np.linspace(0.0, 1.0, num=t_len, dtype=np.float32)
-        margin = float(rng.uniform(0.00, 0.12))
-        direction = 1.0 if float(rng.uniform()) < 0.5 else -1.0
-        s0, s1 = -1.0 + margin, 1.0 - margin
-        s = (s0 + (s1 - s0) * tau).astype(np.float32)
-        if direction < 0.0:
-            s = s[::-1].copy()
-        u = _dual_arm_demo_height_profile(tau, rng, z_half_range)
-        seq.append(
-            _dual_arm_pose_from_s_u(
-                s,
-                u,
-                grasp_span=grasp_span,
-                x_span=x_span,
-                y_amp=y_amp,
-                y_freq=y_freq,
-                z_base=z_base,
-                z_amp=z_amp,
-                z_freq=z_freq,
-                right_hand_opposite=False,
-            )
-        )
-
-    arr = np.concatenate(seq, axis=0).astype(np.float32) if seq else np.zeros((0, 12), dtype=np.float32)
-    n = int(max(1, n_train))
-    if len(arr) >= n:
-        return arr[:n].astype(np.float32)
-    rep = int(math.ceil(float(n) / max(float(len(arr)), 1.0)))
-    return np.tile(arr, (rep, 1))[:n].astype(np.float32)
 
 
 def _dual_arm_pose_yoffset_samex_plane_sameori_n12(cfg) -> Tuple[np.ndarray, np.ndarray]:
@@ -3412,28 +3127,12 @@ def _warped_double_torus_extra_handle_surface_traj_n4(cfg) -> Tuple[np.ndarray, 
 
 
 def generate_dataset(name: str, cfg) -> Tuple[np.ndarray, np.ndarray]:
+    """Load fixed demonstrations or generate samples for the other tasks."""
+    if name in FIXED_DEMONSTRATION_DIMS:
+        demo = load_fixed_demonstrations(name)
+        return demo["x_train"], demo["grid"]
     if name.endswith("_traj"):
         base = str(name)[: -len("_traj")]
-        if base == "12d_dual_arm":
-            cfg_base = SimpleNamespace(**vars(cfg))
-            n_train = max(1, int(getattr(cfg, "n_train", 1)))
-            cfg_base.n_grid = int(
-                max(
-                    int(getattr(cfg, "n_grid", 1)),
-                    int(getattr(cfg, "traj_grid_min", 1)),
-                )
-            )
-            _, grid = generate_dataset(base, cfg_base)
-            traj_count_raw = int(getattr(cfg, "traj_count", max(16, n_train // 64)))
-            traj_count = int(max(1, min(n_train, traj_count_raw)))
-            traj_len = int(max(8, getattr(cfg, "traj_len", int(math.ceil(n_train / max(traj_count, 1))))))
-            x_traj = _dual_arm_demo_trajectory_samples(
-                cfg,
-                n_train=n_train,
-                traj_count=traj_count,
-                traj_len=traj_len,
-            )
-            return x_traj.astype(np.float32), grid.astype(np.float32)
         if base == "3d_genus3_tube_surface":
             cfg_base = SimpleNamespace(**vars(cfg))
             cfg_base.n_grid = int(
@@ -3644,8 +3343,6 @@ def generate_dataset(name: str, cfg) -> Tuple[np.ndarray, np.ndarray]:
         return _spatial_arm_up_n6(cfg)
     if name == "6d_surf_normal":
         return _surf_normal_n6(cfg)
-    if name == "6d_surf_normal_traj":
-        return _surf_normal_traj_n6(cfg)
     if name == "12d_dual_arm":
         return _dual_arm_pose_yoffset_samex_plane_sameori_n12(cfg)
     if name == "2d_noisy_sine":

@@ -89,6 +89,15 @@ python -m runners.run_paper_benchmark --methods oncl,dataaug,vae,ecomann --seeds
 python -m runners.run_one --method oncl --dataset RealKuka --seed 0 --outdir outputs/real_kuka
 ```
 
+Three robot tasks use packaged, fixed demonstrations:
+`6d_spatial_arm_up_n6_py_traj` (15,000 samples), `6d_surf_normal_traj`
+(3,000 samples), and `12d_dual_arm_traj` (1,500 samples). Their demonstration and
+reference arrays are loaded from `datasets/demonstrations/`. They were generated
+with data seed 0; `--seed` changes model training randomness while keeping these
+datasets fixed. Dataset size and trajectory sampling overrides do not regenerate
+these arrays. Other synthetic tasks are generated from the run seed, and RealKuka
+loads its recorded data. See [DATASETS.md](DATASETS.md) for file contents.
+
 Run a specific group or an arbitrary dataset subset:
 
 ```bash

@@ -19,7 +19,7 @@ _REPO_ROOT = os.path.abspath(os.path.join(_THIS_DIR, ".."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from datasets.constraint_datasets import generate_dataset
+from datasets.fixed_demonstrations import load_fixed_demonstrations
 from datasets.ur5_pybullet_utils import resolve_dual_ur5_base_cfg
 from simulation.sim_dual_arm_ur5_demo import (
     DualUR5DemoSim,
@@ -319,16 +319,11 @@ def _load_train_demo_path(cfg: SimpleNamespace, *, demo_index: int) -> dict[str,
     return _path_from_12d_pose_array(blocks[idx].astype(np.float32))
 
 
-def _load_train_demo_blocks(cfg: SimpleNamespace) -> list[np.ndarray]:
-    if not hasattr(cfg, "seed"):
-        setattr(cfg, "seed", 0)
-    x_train, _grid = generate_dataset(DATASET_NAME, cfg)
-    xx = np.asarray(x_train, dtype=np.float32)
-    traj_len = int(max(2, getattr(cfg, "traj_len", max(2, len(xx)))))
-    blocks = _split_demo_blocks(xx[:, :12].astype(np.float32), traj_len)
-    if not blocks:
-        raise RuntimeError("no demo trajectories available from generated training set")
-    return blocks
+def _load_train_demo_blocks(_cfg: SimpleNamespace) -> list[np.ndarray]:
+    demo = load_fixed_demonstrations(DATASET_NAME)
+    stops = np.cumsum(demo["trajectory_lengths"])
+    starts = np.concatenate(([0], stops[:-1]))
+    return [demo["x_train"][start:stop].copy() for start, stop in zip(starts, stops)]
 
 
 def _parse_int_list(text: str) -> list[int]:

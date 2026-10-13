@@ -1,14 +1,7 @@
 {
   "n_train": 15000,
-  "traj_gene_n_grid": 1 ,
+  "traj_gene_n_grid": 1,
   "off_bank_size": 32,
   "off_bank_oversample": 8,
-  "traj_count": 500,
-  "traj_knn": 4,
-  "traj_q4_step_std": 0.08,
-  "traj_q4_step_max": 0.18,
-  "traj_solve_tol": 0.04,
-  "traj_joint_step_max": 0.24,
-  "traj_q56_step_max": 0.24,
-  "traj_workspace_step_max": 0.10
+  "traj_count": 500
 }

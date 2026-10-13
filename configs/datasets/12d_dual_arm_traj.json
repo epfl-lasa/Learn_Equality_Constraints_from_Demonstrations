@@ -5,7 +5,6 @@
   "off_bank_oversample": 12,
   "traj_count": 15,
   "traj_len": 100,
-  "traj_knn": 20,
   "dual_arm_grasp_span": 0.62,
   "dual_arm_curve_x_span": 0.45,
   "dual_arm_curve_y_amp": 0.12,

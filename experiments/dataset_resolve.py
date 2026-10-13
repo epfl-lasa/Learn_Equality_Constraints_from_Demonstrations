@@ -4,9 +4,9 @@ from typing import Any, Callable
 import os
 import glob
 import math
-import xml.etree.ElementTree as ET
 
 import numpy as np
+from datasets.fixed_demonstrations import FIXED_DEMONSTRATION_DIMS, load_fixed_demonstrations
 
 from datasets.constraint_datasets import (
     generate_dataset,
@@ -636,313 +636,6 @@ def _traj_points_from_grid_embedded(
     return tiled[:n].astype(np.float32)
 
 
-def _angle_embed(q: np.ndarray) -> np.ndarray:
-    qq = np.asarray(q, dtype=np.float32)
-    return np.concatenate([np.sin(qq), np.cos(qq)], axis=1).astype(np.float32)
-
-
-def _traj_points_ur5_local_walk(
-    grid_q: np.ndarray,
-    *,
-    n_train: int,
-    seed: int,
-    traj_count: int,
-    traj_len: int,
-    traj_knn: int,
-    joint_step_max: float = 0.45,
-    workspace_step_max: float = 0.22,
-) -> np.ndarray:
-    """UR5 traj generator: local continuous walk with joint/workspace step gates.
-
-    This avoids global teleports: when no valid local move exists, the current trajectory
-    is softly terminated (point repeat) instead of jumping to a random distant node.
-    """
-    qg = np.asarray(grid_q, dtype=np.float32)
-    if len(qg) == 0:
-        return np.zeros((max(1, int(n_train)), 6), dtype=np.float32)
-    n = max(1, int(n_train))
-    n_traj = max(1, int(traj_count))
-    t_len = max(2, int(traj_len))
-    rng = np.random.default_rng(int(seed) + 2401)
-
-    from planning.kinematics import spatial_fk
-    from datasets.ur5_pybullet_utils import UR5_LINK_LENGTHS
-
-    eg = _angle_embed(qg)
-    knn = _knn_indices(eg, k=max(3, int(traj_knn)))
-    ws = spatial_fk(qg, list(UR5_LINK_LENGTHS), use_pybullet_n6=False)[:, -1, :].astype(np.float32)
-    visit = np.zeros((len(qg),), dtype=np.int32)
-
-    # Dynamic starts to improve coverage.
-    starts: list[int] = []
-    seq: list[np.ndarray] = []
-    for ti in range(n_traj):
-        if len(starts) == 0:
-            cur = int(rng.integers(0, len(qg)))
-        else:
-            pool = int(min(len(qg), max(256, 32 * n_traj)))
-            cand_idx = (
-                np.arange(len(qg), dtype=np.int64)
-                if len(qg) <= pool
-                else rng.choice(len(qg), size=pool, replace=False).astype(np.int64)
-            )
-            d2 = np.sum(
-                (eg[cand_idx][:, None, :] - eg[np.array(starts, dtype=np.int64)][None, :, :]) ** 2,
-                axis=2,
-            )
-            d_score = np.min(d2, axis=1).astype(np.float32)
-            v = visit[cand_idx].astype(np.float32)
-            v_score = (np.max(v) - v) if len(v) > 0 else np.zeros_like(d_score)
-            score = 0.70 * (v_score / (np.max(v_score) + 1e-8)) + 0.30 * (d_score / (np.max(d_score) + 1e-8))
-            cur = int(cand_idx[int(np.argmax(score))])
-        starts.append(int(cur))
-
-        prev = -1
-        prev_dir_joint = None
-        for _ in range(t_len):
-            seq.append(qg[cur].astype(np.float32))
-            visit[cur] += 1
-
-            nbr = knn[cur]
-            nbr = nbr[nbr != cur]
-            if prev >= 0:
-                nbr = nbr[nbr != prev]
-            if len(nbr) == 0:
-                # No local candidate: stop this trajectory softly (no teleport).
-                continue
-
-            # Local continuity gates in both spaces.
-            dq = np.abs(qg[nbr] - qg[cur]).astype(np.float32)
-            dq = np.minimum(dq, (2.0 * np.pi - dq)).astype(np.float32)
-            joint_step = np.max(dq, axis=1)
-            ws_step = np.linalg.norm(ws[nbr] - ws[cur], axis=1).astype(np.float32)
-            ok = (joint_step <= float(joint_step_max)) & (ws_step <= float(workspace_step_max))
-            cand = nbr[ok]
-            if len(cand) == 0:
-                # Relax policy: keep within joint local neighborhood, choose minimal workspace step.
-                # Still no global random jump.
-                order = np.argsort(ws_step)
-                cand = nbr[order[: max(1, min(4, len(order)))]]
-
-            vec = (eg[cand] - eg[cur]).astype(np.float32)
-            dist = np.linalg.norm(vec, axis=1) + 1e-8
-            ws_step_cand = np.linalg.norm(ws[cand] - ws[cur], axis=1).astype(np.float32)
-            unit = vec / dist[:, None]
-            cov = visit[cand].astype(np.float32)
-            cov_gain = (np.max(cov) - cov) if len(cov) > 0 else np.zeros_like(dist)
-
-            if prev_dir_joint is None:
-                score = -0.15 * ws_step_cand + 0.80 * cov_gain - 0.10 * dist
-            else:
-                align = np.clip(np.sum(unit * prev_dir_joint.reshape(1, -1), axis=1), -1.0, 1.0)
-                score = 2.4 * align + 0.70 * cov_gain - 0.20 * dist - 0.30 * ws_step_cand
-
-            pick = int(np.argmax(score))
-            nxt = int(cand[pick])
-
-            new_vec = (eg[nxt] - eg[cur]).astype(np.float32)
-            new_norm = float(np.linalg.norm(new_vec))
-            if new_norm > 1e-8:
-                new_u = new_vec / new_norm
-                if prev_dir_joint is None:
-                    prev_dir_joint = new_u.astype(np.float32)
-                else:
-                    prev_dir_joint = (0.82 * prev_dir_joint + 0.18 * new_u).astype(np.float32)
-                    prev_dir_joint = prev_dir_joint / max(float(np.linalg.norm(prev_dir_joint)), 1e-8)
-
-            prev = cur
-            cur = nxt
-
-    arr = np.asarray(seq, dtype=np.float32)
-    if len(arr) == 0:
-        return np.zeros((n, qg.shape[1]), dtype=np.float32)
-    if len(arr) >= n:
-        return arr[:n].astype(np.float32)
-    rep = int(math.ceil(float(n) / float(len(arr))))
-    tiled = np.tile(arr, (rep, 1)).astype(np.float32)
-    return tiled[:n].astype(np.float32)
-
-
-def _sample_ur5_upward_traj_direct_analytic(
-    *,
-    n_train: int,
-    seed: int,
-    traj_count: int,
-    traj_len: int,
-    q4_step_std: float = 0.12,
-    q4_step_max: float = 0.35,
-    solve_tol: float = 0.06,
-    traj_joint_step_max: float = 0.18,
-    traj_q56_step_max: float = 0.22,
-    traj_workspace_step_max: float = 0.08,
-) -> np.ndarray:
-    """Direct trajectory sampler on UR5-up manifold (analytic, no grid-neighbor walk)."""
-    rng = np.random.default_rng(int(seed) + 2603)
-
-    def _limits_from_urdf() -> tuple[np.ndarray, np.ndarray] | None:
-        try:
-            from datasets.ur5_pybullet_utils import resolve_ur5_kinematics_cfg
-
-            kin = resolve_ur5_kinematics_cfg({})
-            urdf_path = str(kin.get("urdf_path", "")).strip()
-            if (not urdf_path) or (not os.path.exists(urdf_path)):
-                return None
-            root = ET.parse(urdf_path).getroot()
-            lo_list: list[float] = []
-            hi_list: list[float] = []
-            for j in root.findall("joint"):
-                if str(j.attrib.get("type", "")).strip().lower() != "revolute":
-                    continue
-                lim = j.find("limit")
-                if lim is None:
-                    continue
-                try:
-                    lo_j = float(lim.attrib.get("lower", "-3.141592653589793"))
-                    hi_j = float(lim.attrib.get("upper", "3.141592653589793"))
-                except Exception:
-                    continue
-                if (not np.isfinite(lo_j)) or (not np.isfinite(hi_j)) or (hi_j <= lo_j):
-                    continue
-                lo_list.append(lo_j)
-                hi_list.append(hi_j)
-                if len(lo_list) >= 6:
-                    break
-            if len(lo_list) < 6:
-                return None
-            return np.asarray(lo_list[:6], dtype=np.float32), np.asarray(hi_list[:6], dtype=np.float32)
-        except Exception:
-            return None
-
-    lim = _limits_from_urdf()
-    if lim is not None:
-        lo, hi = lim
-    else:
-        lo = np.array([-np.pi] * 6, dtype=np.float32)
-        hi = np.array([np.pi] * 6, dtype=np.float32)
-
-    def _axis(q: np.ndarray) -> np.ndarray:
-        ex = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-        R = np.eye(3, dtype=np.float32)
-        axes = ("z", "y", "y", "y", "x", "z")
-        for j, ax in enumerate(axes):
-            a = float(q[j])
-            if ax == "x":
-                c, s = np.cos(a), np.sin(a)
-                Rj = np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=np.float32)
-            elif ax == "y":
-                c, s = np.cos(a), np.sin(a)
-                Rj = np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]], dtype=np.float32)
-            else:
-                c, s = np.cos(a), np.sin(a)
-                Rj = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32)
-            R = R @ Rj
-        a = R @ ex
-        return a / max(float(np.linalg.norm(a)), 1e-8)
-
-    def _solve_q56(q: np.ndarray, iters: int = 18) -> tuple[np.ndarray, float]:
-        qq = q.astype(np.float32).copy()
-        best_q = qq.copy()
-        best_res = float("inf")
-        for _ in range(max(1, int(iters))):
-            a = _axis(qq)
-            r = np.array([a[0], a[1]], dtype=np.float32)
-            val = float(np.linalg.norm(r))
-            if (a[2] > 0.0) and (val < best_res):
-                best_res = val
-                best_q = qq.copy()
-            if (a[2] > 0.0) and (val < float(solve_tol)):
-                return qq, val
-            eps = 2e-3
-            J = np.zeros((2, 2), dtype=np.float32)
-            qd = qq.copy()
-            qd[4] = np.clip(qd[4] + eps, lo[4], hi[4])
-            ad = _axis(qd)
-            J[:, 0] = (ad[:2] - r) / eps
-            qd = qq.copy()
-            qd[5] = np.clip(qd[5] + eps, lo[5], hi[5])
-            ad = _axis(qd)
-            J[:, 1] = (ad[:2] - r) / eps
-            JTJ = J.T @ J + 1e-4 * np.eye(2, dtype=np.float32)
-            step = np.linalg.solve(JTJ, J.T @ r)
-            step = np.clip(step, -0.25, 0.25)
-            qq[4] = np.clip(qq[4] - step[0], lo[4], hi[4])
-            qq[5] = np.clip(qq[5] - step[1], lo[5], hi[5])
-        return best_q, float(best_res)
-
-    def _sample_start(max_tries: int = 1200) -> np.ndarray:
-        for _ in range(max_tries):
-            q = np.zeros((6,), dtype=np.float32)
-            q[:4] = rng.uniform(lo[:4], hi[:4]).astype(np.float32)
-            q[4] = rng.uniform(lo[4], hi[4])
-            q[5] = rng.uniform(lo[5], hi[5])
-            q_sol, res = _solve_q56(q, iters=20)
-            a = _axis(q_sol)
-            if (a[2] > 0.0) and (res < float(solve_tol)):
-                return q_sol.astype(np.float32)
-        raise RuntimeError("failed to sample UR5 traj start with upward constraint")
-
-    def _ang_step_abs(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        d = np.abs(a.astype(np.float32) - b.astype(np.float32))
-        return np.minimum(d, (2.0 * np.pi - d)).astype(np.float32)
-
-    from planning.kinematics import spatial_fk
-    from datasets.ur5_pybullet_utils import UR5_LINK_LENGTHS
-
-    def _ee_pos(q: np.ndarray) -> np.ndarray:
-        j = spatial_fk(q.reshape(1, 6).astype(np.float32), list(UR5_LINK_LENGTHS), use_pybullet_n6=False)
-        return j[0, -1, :].astype(np.float32)
-
-    n = max(1, int(n_train))
-    n_traj = max(1, int(traj_count))
-    t_len = max(2, int(traj_len))
-    seq: list[np.ndarray] = []
-    for _ti in range(n_traj):
-        cur = _sample_start()
-        cur_ee = _ee_pos(cur)
-        for _ in range(t_len):
-            seq.append(cur.astype(np.float32))
-            accepted = False
-            for _try in range(48):
-                dq4 = rng.normal(0.0, float(q4_step_std), size=(4,)).astype(np.float32)
-                dq4 = np.clip(dq4, -float(q4_step_max), float(q4_step_max))
-                qn = cur.copy()
-                qn[:4] = np.clip(qn[:4] + dq4, lo[:4], hi[:4])
-                # Warm start around previous wrist to preserve continuity.
-                qn[4] = np.clip(cur[4] + rng.normal(0.0, 0.05), lo[4], hi[4])
-                qn[5] = np.clip(cur[5] + rng.normal(0.0, 0.05), lo[5], hi[5])
-                q_sol, res = _solve_q56(qn, iters=16)
-                a = _axis(q_sol)
-                if not ((a[2] > 0.0) and (res < float(solve_tol))):
-                    continue
-                dq = _ang_step_abs(q_sol, cur)
-                joint_step = float(np.max(dq))
-                q56_step = float(np.max(dq[4:6]))
-                if joint_step > float(traj_joint_step_max):
-                    continue
-                if q56_step > float(traj_q56_step_max):
-                    continue
-                cand_ee = _ee_pos(q_sol)
-                ws_step = float(np.linalg.norm(cand_ee - cur_ee))
-                if ws_step > float(traj_workspace_step_max):
-                    continue
-                cur = q_sol.astype(np.float32)
-                cur_ee = cand_ee.astype(np.float32)
-                accepted = True
-                break
-            if not accepted:
-                # Keep continuity by staying at current valid point.
-                cur = cur.astype(np.float32)
-
-    arr = np.asarray(seq, dtype=np.float32)
-    if len(arr) == 0:
-        return np.zeros((n, 6), dtype=np.float32)
-    if len(arr) >= n:
-        return arr[:n].astype(np.float32)
-    rep = int(math.ceil(float(n) / float(len(arr))))
-    tiled = np.tile(arr, (rep, 1)).astype(np.float32)
-    return tiled[:n].astype(np.float32)
-
-
 def _plot_traj_jump_debug(
     *,
     g: np.ndarray,
@@ -1064,6 +757,36 @@ def resolve_dataset(
     optimize_ur5_train_only: bool = True,
     ur5_backend: str | None = None,
 ) -> dict[str, Any]:
+    if name in FIXED_DEMONSTRATION_DIMS:
+        demo = load_fixed_demonstrations(name)
+        arm_up = name == "6d_spatial_arm_up_n6_py_traj"
+        dim = FIXED_DEMONSTRATION_DIMS[name]
+        if arm_up:
+            labels = tuple(f"q{i + 1}" for i in range(6))
+            codim = 2
+        elif dim == 6:
+            labels = ("x", "y", "z", "roll", "pitch", "yaw")
+            codim = 3
+        else:
+            labels = ("x1", "y1", "z1", "roll1", "pitch1", "yaw1", "x2", "y2", "z2", "roll2", "pitch2", "yaw2")
+            codim = 10
+        result = {
+            "name": name,
+            "x_train": demo["x_train"],
+            "grid": demo["grid"],
+            "data_dim": dim,
+            "axis_labels": labels,
+            "true_codim": codim,
+            "periodic_joint": arm_up,
+            "demonstration_seed": demo["generation_seed"],
+            "trajectory_lengths": demo["trajectory_lengths"],
+            "train_noise": None,
+            "train_missing_segments": None,
+            "train_subsample": None,
+        }
+        if arm_up:
+            result["ur5_backend"] = "analytic"
+        return result
     if is_real_iiwa_dataset(name):
         canonical = canonical_real_iiwa_dataset_name(name)
         x_key = str(getattr(cfg, "real_iiwa_x_key", "x"))
@@ -1261,35 +984,6 @@ def resolve_dataset(
                     seed=seed,
                 )
             _save_ur5_cache(cache_path, x, grid)
-        if is_traj:
-            traj_count_raw = int(getattr(cfg, "traj_count", max(18, n_train // 128)))
-            traj_count = int(max(1, min(n_train, traj_count_raw)))
-            traj_len = int(max(8, getattr(cfg, "traj_len", int(math.ceil(n_train / max(traj_count, 1))))))
-            traj_knn_default = 10 if str(name) == "6d_spatial_arm_up_n6_py_traj" else 24
-            traj_knn = int(max(3, getattr(cfg, "traj_knn", traj_knn_default)))
-            if str(name) == "6d_spatial_arm_up_n6_py_traj":
-                x = _sample_ur5_upward_traj_direct_analytic(
-                    n_train=n_train,
-                    seed=seed,
-                    traj_count=traj_count,
-                    traj_len=traj_len,
-                    q4_step_std=float(getattr(cfg, "traj_q4_step_std", 0.12)),
-                    q4_step_max=float(getattr(cfg, "traj_q4_step_max", 0.35)),
-                    solve_tol=float(getattr(cfg, "traj_solve_tol", 0.06)),
-                    traj_joint_step_max=float(getattr(cfg, "traj_joint_step_max", 0.18)),
-                    traj_q56_step_max=float(getattr(cfg, "traj_q56_step_max", 0.22)),
-                    traj_workspace_step_max=float(getattr(cfg, "traj_workspace_step_max", 0.08)),
-                )
-            else:
-                x = _traj_points_from_grid_embedded(
-                    np.asarray(grid, dtype=np.float32),
-                    embed=_angle_embed(np.asarray(grid, dtype=np.float32)),
-                    n_train=n_train,
-                    seed=seed,
-                    traj_count=traj_count,
-                    traj_len=traj_len,
-                    traj_knn=traj_knn,
-                )
         return {
             "name": name,
             "x_train": _as_float32(x),

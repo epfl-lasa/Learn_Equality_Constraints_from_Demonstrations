@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 import torch
 from torch import nn
+from datasets.fixed_demonstrations import FIXED_DEMONSTRATION_DIMS, load_fixed_demonstrations
 from datasets.constraint_datasets import (
     generate_dataset,
     lift_xy_to_3d_var,
@@ -95,6 +96,8 @@ def resolve_gt_grid(
     cfg: Any,
     x_train: np.ndarray | None = None,
 ) -> np.ndarray:
+    if dataset_name in FIXED_DEMONSTRATION_DIMS:
+        return load_fixed_demonstrations(dataset_name)["eval_grid"]
     cfg_ds = SimpleNamespace(**vars(cfg)) if hasattr(cfg, "__dict__") else SimpleNamespace()
     cfg_ds.n_grid = int(getattr(cfg, "eval_gt_n_grid", DEFAULT_EVAL_CFG["eval_gt_n_grid"]))
     if not hasattr(cfg_ds, "n_train"):
